@@ -51,4 +51,15 @@ dependencies {
     api("io.ktor:ktor-client-logging:$ktorVersion")
 
     api("com.github.ljwx:jdcrlog:1.2.2-SNAPSHOT")
+
+    val ktor_version = "2.2.4"
+    api("io.ktor:ktor-client-core:$ktor_version")
+    api("io.ktor:ktor-client-cio:$ktor_version")
+    api("io.ktor:ktor-client-content-negotiation:$ktor_version")
+    api("io.ktor:ktor-serialization-kotlinx-json:$ktor_version")
+    api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
+    api("io.ktor:ktor-client-logging:$ktor_version")
+    api("io.ktor:ktor-client-websockets:$ktor_version")
+    api("io.ktor:ktor-client-encoding:$ktor_version")
+    api("io.ktor:ktor-client-auth:$ktor_version")
 }

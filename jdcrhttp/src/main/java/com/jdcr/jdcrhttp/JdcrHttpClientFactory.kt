@@ -1,9 +1,6 @@
 package com.jdcr.jdcrhttp
 
 import com.jdcr.jdcrhttp.auth.JdcrHttpAuthUtils
-import com.jdcr.jdcrhttp.auth.isCurrentRequestAuthToken
-import com.jdcr.jdcrhttp.auth.isExcludeToken
-import com.jdcr.jdcrhttp.auth.isNeedToken
 import com.jdcr.jdcrhttp.config.JdcrHttpConfig
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.client.HttpClient
@@ -25,7 +22,6 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.plugin
-import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -35,7 +31,7 @@ import kotlinx.serialization.json.Json
 
 object JdcrHttpClientFactory {
 
-    private var bearerProvider: BearerAuthProvider ? = null
+    private var bearerProvider: BearerAuthProvider? = null
 
     internal fun clearBearerTokenCache() {
         bearerProvider?.clearToken()
@@ -65,8 +61,6 @@ object JdcrHttpClientFactory {
                 }
                 configureEngine() // 外层传入：在默认引擎参数之后再改 CIOEngineConfig
             }
-
-            install(WebSockets) // 启用客户端 WebSocket（与 REST 共用 HttpClient）
 
             if (config.redirect.enabled) {
                 install(HttpRedirect) {
@@ -151,19 +145,7 @@ object JdcrHttpClientFactory {
                     val provider = config.auth.provider
                     JdcrHttpAuthUtils.getBearerTokens(provider?.invoke(), null)
                 }, sendWithoutRequestCallback = { request ->
-                    var shouldSend = if (config.auth.enableTokenAll) {
-                        !request.isExcludeToken()
-                    } else {
-                        request.isNeedToken()
-                    }
-                    if (!shouldSend) {
-                        request.attributes.put(Auth.AuthCircuitBreaker, Unit)
-                    }
-                    if (request.isCurrentRequestAuthToken()) {
-                        request.attributes.put(Auth.AuthCircuitBreaker, Unit)
-                        return@BearerAuthProvider false
-                    }
-                    shouldSend
+                    JdcrHttpAuthUtils.handlePluginToken(request, config.auth.enableTokenAll)
                 }, realm = null, refreshTokens = {
 //                    delay(300)
 //                    JdcrHttpAuthUtils.setGlobalToken("111")
@@ -181,24 +163,13 @@ object JdcrHttpClientFactory {
         }.also { client ->
             if (config.auth.enable && !config.auth.enableDefaultPlugin) {
                 client.plugin(HttpSend).intercept { original ->
-                    suspend fun addToken() {
-                        val key = config.auth.disableDefaultAndCustomKey ?: "Authorization"
-                        val providerToken =
-                            if (original.isCurrentRequestAuthToken()) null else config.auth.provider?.invoke()
-                        val token = JdcrHttpAuthUtils.getHeaderToken(providerToken)
-                        if (token != null) {
-                            original.headers[key] = token
-                        }
-                    }
-                    if (config.auth.enableTokenAll) {
-                        if (!original.isExcludeToken()) {
-                            addToken()
-                        }
-                    } else {
-                        if (original.isNeedToken()) {
-                            addToken()
-                        }
-                    }
+                    val key = config.auth.disableDefaultAndCustomKey ?: "Authorization"
+                    JdcrHttpAuthUtils.handleCustomToken(
+                        original,
+                        config.auth.enableTokenAll,
+                        key,
+                        config.auth.provider
+                    )
                     execute(original)
                 }
             }

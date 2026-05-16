@@ -59,7 +59,6 @@ dependencies {
     api("io.ktor:ktor-serialization-kotlinx-json:$ktor_version")
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
     api("io.ktor:ktor-client-logging:$ktor_version")
-    api("io.ktor:ktor-client-websockets:$ktor_version")
     api("io.ktor:ktor-client-encoding:$ktor_version")
     api("io.ktor:ktor-client-auth:$ktor_version")
 }

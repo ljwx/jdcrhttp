@@ -8,13 +8,13 @@ import io.ktor.client.plugins.logging.LogLevel
  * CIO 引擎连接池与 endpoint 占位；可按环境与机型调优。
  */
 data class JdcrHttpConfigEngine(
-    var maxConnectionsCount: Int = 64,
+    val maxConnectionsCount: Int = 64,
     /** 建连失败时的额外尝试次数语义：`connectAttempts = retryTimes + 1` */
-    var retryTimes: Int = 2,
-    var maxConnectionsPerRoute: Int = 32,
-    var pipelineMaxSize: Int = 20,
-    var keepAliveTimeMs: Long = 5_000L,
-    var allowHalfClose: Boolean = false,
+    val retryTimes: Int = 2,
+    val maxConnectionsPerRoute: Int = 32,
+    val pipelineMaxSize: Int = 20,
+    val keepAliveTimeMs: Long = 5_000L,
+    val allowHalfClose: Boolean = false,
 ) {
     init {
         require(retryTimes >= 0) { "retryTimes 不能小于 0" }
@@ -25,9 +25,9 @@ data class JdcrHttpConfigEngine(
 }
 
 data class JdcrHttpConfigTimeout(
-    var connectTimeoutMs: Long = 30_000L,
-    var socketTimeoutMs: Long = 60_000L,
-    var requestTimeoutMs: Long = 60_000L,
+    val connectTimeoutMs: Long = 30_000L,
+    val socketTimeoutMs: Long = 60_000L,
+    val requestTimeoutMs: Long = 60_000L,
 ) {
     init {
         require(connectTimeoutMs > 0)
@@ -45,8 +45,8 @@ data class JdcrHttpConfigLog(
  * HTTP 重试占位（插件层，与引擎 [JdcrHttpConfigEngine.retryTimes] 不同）。
  */
 data class JdcrHttpConfigRetry(
-    var enabled: Boolean = true,
-    var maxRetries: Int = 2,
+    val enabled: Boolean = true,
+    val maxRetries: Int = 2,
     /** 是否对 5xx 响应重试 */
     var retryOn5xx: Boolean = false,
     /** 是否在 IOException 等传输异常时重试（占位，后续可按异常类型收紧） */
@@ -55,9 +55,9 @@ data class JdcrHttpConfigRetry(
 
 /** 301/302 等重定向 */
 data class JdcrHttpConfigRedirect(
-    var enabled: Boolean = false,
-    var allowHttpsDowngrade: Boolean = false,
-    var checkHttpMethod: Boolean = true,
+    val enabled: Boolean = false,
+    val allowHttpsDowngrade: Boolean = false,
+    val checkHttpMethod: Boolean = true,
 )
 
 /**
@@ -70,33 +70,33 @@ data class JdcrHttpConfigHeaders(
 )
 
 data class JdcrHttpConfigAuth(
-    var enable: Boolean = true,
-    var enableDefaultPlugin: Boolean = true,
-    var enableTokenAll: Boolean = true, //所有接口默认添加token
+    val enable: Boolean = true,
+    val enableDefaultPlugin: Boolean = true,
+    val enableTokenAll: Boolean = true, //所有接口默认添加token
     var disableDefaultAndCustomKey: String? = null,
-    val provider: (suspend () -> String?)? = null,
+    var provider: (suspend () -> String?)? = null,
 )
 
 /** Cookie：占位默认内存存储；持久化可之后在工厂里换 [PersistentCookieStorage] 等 */
 data class JdcrHttpConfigCookies(
-    var enabled: Boolean = false,
+    val enabled: Boolean = false,
 )
 
 /** Accept-Encoding：gzip / deflate 等（需 ktor-client-encoding） */
 data class JdcrHttpConfigCompression(
-    var enabled: Boolean = true,
+    val enabled: Boolean = true,
 )
 
 /**
  * `expectSuccess = true` 时非 2xx 会直接抛 [ResponseException]（可按团队规范选 true/false）。
  */
 data class JdcrHttpConfigBehavior(
-    var expectSuccess: Boolean = false,
+    val expectSuccess: Boolean = false,
 )
 
 data class JdcrHttpConfigContentJson(
     var jsonPrettyPrint: Boolean = false, //调试可读,json缩进
-    var configureContent: (ContentNegotiation.Config.() -> Unit)? = null,
+    val configureContent: (ContentNegotiation.Config.() -> Unit)? = null,
 )
 
 /**

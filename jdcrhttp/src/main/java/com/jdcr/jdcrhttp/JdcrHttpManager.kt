@@ -2,8 +2,6 @@ package com.jdcr.jdcrhttp
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -14,18 +12,12 @@ import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.utils.io.core.Closeable
-import io.ktor.websocket.Frame
-import io.ktor.websocket.WebSocketSession
-import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 class JdcrHttpManager private constructor(
     val client: HttpClient,
     private val baseUrl: String = "",
-) : Closeable {
+) : Closeable, IJdcrHttpManager {
 
     companion object {
         private var customClient: HttpClient? = null
@@ -104,69 +96,50 @@ class JdcrHttpManager private constructor(
         block()
     }.body()
 
-    suspend fun getRaw(
-        pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
-    ): HttpResponse = client.get {
-        url(resolveUrl(pathOrUrl))
-        block()
-    }
-
-    suspend fun postRaw(
-        pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
-    ): HttpResponse = client.post {
-        url(resolveUrl(pathOrUrl))
-        block()
-    }
-
-    suspend fun putRaw(
-        pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
-    ): HttpResponse = client.put {
-        url(resolveUrl(pathOrUrl))
-        block()
-    }
-
-    suspend fun patchRaw(
-        pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
-    ): HttpResponse = client.patch {
-        url(resolveUrl(pathOrUrl))
-        block()
-    }
-
-    suspend fun deleteRaw(
-        pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
-    ): HttpResponse = client.delete {
-        url(resolveUrl(pathOrUrl))
-        block()
-    }
-
-    suspend fun getText(
-        pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
-    ): String = getRaw(pathOrUrl, block).bodyAsText()
-
-    suspend fun webSocket(
-        pathOrUrl: String,
-        request: HttpRequestBuilder.() -> Unit = {},
-        handler: suspend DefaultClientWebSocketSession.() -> Unit,
-    ) {
-        client.webSocket(resolveUrl(pathOrUrl), request, handler)
-    }
-
-    fun WebSocketSession.incomingText(): Flow<String> = flow {
-        val channel: ReceiveChannel<Frame> = incoming
-        for (frame in channel) {
-            when (frame) {
-                is Frame.Text -> emit(frame.readText())
-                is Frame.Close -> break
-                else -> Unit
-            }
-        }
-    }
+//    suspend fun getRaw(
+//        pathOrUrl: String,
+//        block: HttpRequestBuilder.() -> Unit = {},
+//    ): HttpResponse = client.get {
+//        url(resolveUrl(pathOrUrl))
+//        block()
+//    }
+//
+//    suspend fun postRaw(
+//        pathOrUrl: String,
+//        block: HttpRequestBuilder.() -> Unit = {},
+//    ): HttpResponse = client.post {
+//        url(resolveUrl(pathOrUrl))
+//        block()
+//    }
+//
+//    suspend fun putRaw(
+//        pathOrUrl: String,
+//        block: HttpRequestBuilder.() -> Unit = {},
+//    ): HttpResponse = client.put {
+//        url(resolveUrl(pathOrUrl))
+//        block()
+//    }
+//
+//    suspend fun patchRaw(
+//        pathOrUrl: String,
+//        block: HttpRequestBuilder.() -> Unit = {},
+//    ): HttpResponse = client.patch {
+//        url(resolveUrl(pathOrUrl))
+//        block()
+//    }
+//
+//    suspend fun deleteRaw(
+//        pathOrUrl: String,
+//        block: HttpRequestBuilder.() -> Unit = {},
+//    ): HttpResponse = client.delete {
+//        url(resolveUrl(pathOrUrl))
+//        block()
+//    }
+//
+//    suspend fun getText(
+//        pathOrUrl: String,
+//        block: HttpRequestBuilder.() -> Unit = {},
+//    ): String = getRaw(pathOrUrl, block).bodyAsText()
 
     override fun close() {
         client.close()

@@ -1,15 +1,16 @@
 package com.jdcr.jdcrhttp.auth
 
+import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.util.AttributeKey
 import java.util.concurrent.atomic.AtomicReference
 
 internal val NeedAuthTokenKey = AttributeKey<Boolean>("needAuthToken")
-internal val CurrentRequireAuthTokenKey = AttributeKey<Boolean>("currentRequireAuthToken")
+internal val CurrentApiRequireAuthTokenKey = AttributeKey<Boolean>("currentRequireAuthToken")
 
-fun HttpRequestBuilder.currentRequestAuthToken() {
-    attributes.put(CurrentRequireAuthTokenKey, true)
+fun HttpRequestBuilder.currentApiRequestAuthToken() {
+    attributes.put(CurrentApiRequireAuthTokenKey, true)
 }
 
 fun HttpRequestBuilder.needAuthToken() {
@@ -20,8 +21,8 @@ fun HttpRequestBuilder.excludeAuthToken() {
     attributes.put(NeedAuthTokenKey, false)
 }
 
-internal fun HttpRequestBuilder.isCurrentRequestAuthToken(): Boolean {
-    return this.attributes.getOrNull(CurrentRequireAuthTokenKey) == true
+internal fun HttpRequestBuilder.isCurrentApiRequestAuthToken(): Boolean {
+    return this.attributes.getOrNull(CurrentApiRequireAuthTokenKey) == true
 }
 
 internal fun HttpRequestBuilder.isNeedToken(): Boolean {
@@ -69,6 +70,45 @@ object JdcrHttpAuthUtils {
             null
         } else {
             BearerTokens(headerToken, headerRefresh ?: "")
+        }
+    }
+
+    internal fun handlePluginToken(
+        request: HttpRequestBuilder,
+        allApiSendToken: Boolean,
+    ): Boolean {
+        var shouldSend = if (allApiSendToken) {
+            !request.isExcludeToken()
+        } else {
+            request.isNeedToken()
+        }
+        if (!shouldSend) {
+            request.attributes.put(Auth.AuthCircuitBreaker, Unit)
+        }
+        if (request.isCurrentApiRequestAuthToken()) {
+            request.attributes.put(Auth.AuthCircuitBreaker, Unit)
+            shouldSend = false
+        }
+        return shouldSend
+    }
+
+    internal suspend fun handleCustomToken(
+        request: HttpRequestBuilder,
+        allApiSendToken: Boolean,
+        key: String,
+        tokenProvider: (suspend () -> String?)? = null
+    ) {
+        if (request.isCurrentApiRequestAuthToken()) {
+            return
+        }
+        if (allApiSendToken) {
+            if (!request.isExcludeToken()) {
+                getHeaderToken(tokenProvider?.invoke())?.let { request.headers[key] = it }
+            }
+        } else {
+            if (request.isNeedToken()) {
+                getHeaderToken(tokenProvider?.invoke())?.let { request.headers[key] = it }
+            }
         }
     }
 

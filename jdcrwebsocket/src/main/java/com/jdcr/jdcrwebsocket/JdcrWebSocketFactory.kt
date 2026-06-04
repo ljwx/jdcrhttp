@@ -6,7 +6,7 @@ import io.ktor.client.plugins.websocket.WebSockets
 
 object JdcrWebSocketFactory {
 
-    fun getDefaultWebsocket(): HttpClient {
+    fun getDefaultWebsocket(config: JdcrWebSocketConfig): HttpClient {
         return getDefaultHttp {
             install(WebSockets) {
                 pingInterval = 10_000 // 10秒发送一次 Ping（单位：毫秒）

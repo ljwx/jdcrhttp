@@ -91,7 +91,7 @@ data class JdcrHttpConfigCompression(
  * `expectSuccess = true` 时非 2xx 会直接抛 [ResponseException]（可按团队规范选 true/false）。
  */
 data class JdcrHttpConfigBehavior(
-    val expectSuccess: Boolean = false,
+    val expectSuccess: Boolean = true,
 )
 
 data class JdcrHttpConfigContentJson(

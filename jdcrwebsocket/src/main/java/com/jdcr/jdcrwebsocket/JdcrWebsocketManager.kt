@@ -13,7 +13,11 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
-class JdcrWebsocketManager(val client: HttpClient, private val baseUrl: String = "") : Closeable,
+class JdcrWebsocketManager(
+    private val config: JdcrWebSocketConfig = JdcrWebSocketConfig(),
+    private val client: HttpClient = JdcrWebSocketFactory.getDefaultWebsocket(config),
+    private val baseUrl: String = ""
+) : Closeable,
     IJdcrHttpManager {
 
     fun resolveUrl(pathOrUrl: String): String {

@@ -37,7 +37,7 @@ data class JdcrHttpConfigTimeout(
 }
 
 data class JdcrHttpConfigLog(
-    var enable: Boolean = false,
+    var enable: Boolean = true,
     var level: LogLevel = LogLevel.INFO,
 )
 

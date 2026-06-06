@@ -50,7 +50,8 @@ dependencies {
 
     api("io.ktor:ktor-client-logging:$ktorVersion")
 
-    api("com.github.ljwx:jdcrlog:1.2.2-SNAPSHOT")
+    // 先固定到 Android 变体，避免 KMP 元数据在当前工程版本下错误挑选到 debug/js 产物
+    api("com.github.ljwx.jdcrlog:jdcrlog-android:1.3.0-SNAPSHOT")
 
     val ktor_version = "2.2.4"
     api("io.ktor:ktor-client-core:$ktor_version")

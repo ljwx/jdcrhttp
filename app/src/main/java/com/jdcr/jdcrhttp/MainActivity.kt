@@ -12,11 +12,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.jdcr.jdcrhttp.ui.theme.JdcrHttpTheme
+import com.jdcr.jdcrlog.JdcrLog
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        JdcrLog.enable(true, this.cacheDir.toString()+"/test/log.txt")
         setContent {
             JdcrHttpTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->

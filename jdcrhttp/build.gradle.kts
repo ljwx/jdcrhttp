@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    `maven-publish`
 }
 
 android {
@@ -55,4 +56,19 @@ dependencies {
     // 先固定到 Android 变体，避免 KMP 元数据在当前工程版本下错误挑选到 debug/js 产物
     api("com.github.ljwx.jdcrlog:jdcrlog-android:1.3.0-SNAPSHOT")
 
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"]) //release debug
+                // JitPack 会自动填充 groupId 和 version，
+                // 但为了本地测试，你可以保留这些：
+                groupId = "com.github.jdcr"
+                artifactId = "jdcrhttp"
+                version = "1.0.0-SNAPSHOT"
+            }
+        }
+    }
 }

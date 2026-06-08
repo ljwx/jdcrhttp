@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    `maven-publish`
 }
 
 android {
@@ -37,4 +38,19 @@ dependencies {
     api("io.ktor:ktor-client-websockets:$ktorVersion")
     api(project(":jdcrhttp"))
 
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"]) //release debug
+                // JitPack 会自动填充 groupId 和 version，
+                // 但为了本地测试，你可以保留这些：
+                groupId = "com.github.jdcr"
+                artifactId = "jdcrwebsocket"
+                version = "1.0.0-SNAPSHOT"
+            }
+        }
+    }
 }

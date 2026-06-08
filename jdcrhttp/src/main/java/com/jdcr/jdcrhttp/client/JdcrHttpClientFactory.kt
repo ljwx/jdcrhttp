@@ -1,4 +1,4 @@
-package com.jdcr.jdcrhttp
+package com.jdcr.jdcrhttp.client
 
 import com.jdcr.jdcrhttp.auth.JdcrHttpAuthUtils
 import com.jdcr.jdcrhttp.config.JdcrHttpConfig
@@ -27,6 +27,7 @@ import io.ktor.client.plugins.plugin
 import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.serialization.kotlinx.json.json
 import java.io.IOException
 import kotlinx.serialization.json.Json
@@ -50,7 +51,7 @@ object JdcrHttpClientFactory {
             engine {
                 config.proxy?.let { proxy = it } // HTTP/SOCKS 代理；null 表示直连
                 maxConnectionsCount = config.engine.maxConnectionsCount // CIO 全局最大并发连接数（整客户端）
-                requestTimeout = config.timeout.requestTimeoutMs // 引擎侧：从发起到收完响应的上限（毫秒）
+                requestTimeout = 0 // 引擎不限整请求时长，墙钟超时交给 HttpTimeout 插件，SSE 才能长连
                 endpoint {
                     connectTimeout = config.timeout.connectTimeoutMs // 建连（TCP/TLS）阶段超时
                     socketTimeout = config.timeout.socketTimeoutMs // 已连接后，相邻两次读写到时的空闲超时
@@ -75,11 +76,13 @@ object JdcrHttpClientFactory {
             if (config.retry.enabled) {
                 install(HttpRequestRetry) {
                     maxRetries = config.retry.maxRetries // 插件层最大重试次数（与引擎建连重试无关）
-                    retryIf { _, response ->
-                        config.retry.retryOn5xx && response.status.value in 500..599 // 5xx 时是否重试
+                    retryIf { request, response ->
+                        config.retry.retryOn5xx && response.status.value in 500..599 && // 5xx 时是否重试&&
+                                (!config.retry.exceptPost || request.method != HttpMethod.Post) // 不是 POST 时才重试
                     }
-                    retryOnExceptionIf { _, cause ->
-                        config.retry.retryOnNetworkError && cause is IOException // IOException 时是否重试
+                    retryOnExceptionIf { request, cause ->
+                        config.retry.retryOnNetworkError && cause is IOException && // IOException 时是否重试
+                                (!config.retry.exceptPost || request.method != HttpMethod.Post) // 不是 POST 时才重试
                     }
                     exponentialDelay() // 重试间隔：指数退避
                 }
@@ -136,8 +139,8 @@ object JdcrHttpClientFactory {
                     level = config.log.level // Ktor 日志级别（如 INFO、ALL、BODY）
                     logger = object : Logger {
                         override fun log(message: String) {
-                            val output = when(level) {
-                                LogLevel.INFO  -> message
+                            val output = when (level) {
+                                LogLevel.INFO -> message
                                 else -> JdcrHttpUtils.sanitizeLogMessage(message, "****")
                             }
 

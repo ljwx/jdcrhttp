@@ -1,6 +1,9 @@
 package com.jdcr.jdcrhttp
 
+import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
+import com.jdcr.jdcrhttp.response.JdcrSSEEvent
+import com.jdcr.jdcrhttp.response.asSseEvents
 import com.jdcr.jdcrhttp.response.handleRequestResult
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -17,11 +20,11 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.core.Closeable
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 
 class JdcrHttpManager(
     val client: HttpClient,
-    private val baseUrl: String = "",
+    override val baseUrl: String,
 ) : Closeable, IJdcrHttpManager {
 
     companion object {
@@ -29,36 +32,26 @@ class JdcrHttpManager(
         private var manager: JdcrHttpManager? = null
         fun initInstance(
             baseUrl: String,
-            client: HttpClient = JdcrHttpClientFactory.getDefaultHttp()
+            client: HttpClient? = null
         ): JdcrHttpManager {
             manager?.let { return it }
             return synchronized(this) {
-                manager ?: JdcrHttpManager(client, baseUrl)
+                manager ?: JdcrHttpManager(
+                    client ?: JdcrHttpClientFactory.getDefaultHttp(),
+                    baseUrl
+                ).also { manager = it }
             }
         }
 
         fun instance(): JdcrHttpManager {
             return requireNotNull(manager) {
-                "请先初始化JdcrHttpManager.initInstance()"
+                "请先初始化,JdcrHttpManager.initInstance()"
             }
         }
     }
 
     fun clearBearerTokenCache() {
         JdcrHttpClientFactory.clearBearerTokenCache()
-    }
-
-    fun resolveUrl(pathOrUrl: String): String {
-        val trimmed = pathOrUrl.trim()
-        if (trimmed.startsWith("http://", ignoreCase = true) ||
-            trimmed.startsWith("https://", ignoreCase = true)
-        ) {
-            return trimmed
-        }
-        val base = baseUrl.trimEnd('/')
-        if (base.isEmpty()) return trimmed.trimStart('/')
-        val path = trimmed.trimStart('/')
-        return "$base/$path"
     }
 
     suspend inline fun <reified T> get(
@@ -83,6 +76,11 @@ class JdcrHttpManager(
         header(HttpHeaders.CacheControl, "no-cache")
         block()
     }.bodyAsChannel()
+
+    suspend inline fun connectSSEFlow(
+        pathOrUrl: String,
+        crossinline block: HttpRequestBuilder.() -> Unit = {},
+    ): Flow<JdcrSSEEvent> = connectSSE(pathOrUrl, block).asSseEvents()
 
     suspend inline fun <reified T> post(
         pathOrUrl: String,
@@ -173,14 +171,4 @@ class JdcrHttpManager(
         client.close()
     }
 
-}
-
-suspend inline fun <T> JdcrHttpManager.runCatchingCancellable(crossinline block: suspend JdcrHttpManager.() -> T): Result<T> {
-    return try {
-        Result.success(block(this))
-    } catch (ce: CancellationException) {
-        throw ce
-    } catch (e: Throwable) {
-        Result.failure(e)
-    }
 }

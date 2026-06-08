@@ -50,16 +50,9 @@ dependencies {
 
     api("io.ktor:ktor-client-logging:$ktorVersion")
 
+    api("io.ktor:ktor-client-encoding:$ktorVersion")
+    api("io.ktor:ktor-client-auth:$ktorVersion")
     // 先固定到 Android 变体，避免 KMP 元数据在当前工程版本下错误挑选到 debug/js 产物
     api("com.github.ljwx.jdcrlog:jdcrlog-android:1.3.0-SNAPSHOT")
 
-    val ktor_version = "2.2.4"
-    api("io.ktor:ktor-client-core:$ktor_version")
-    api("io.ktor:ktor-client-cio:$ktor_version")
-    api("io.ktor:ktor-client-content-negotiation:$ktor_version")
-    api("io.ktor:ktor-serialization-kotlinx-json:$ktor_version")
-    api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
-    api("io.ktor:ktor-client-logging:$ktor_version")
-    api("io.ktor:ktor-client-encoding:$ktor_version")
-    api("io.ktor:ktor-client-auth:$ktor_version")
 }

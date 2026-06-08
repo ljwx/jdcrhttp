@@ -1,6 +1,6 @@
 package com.jdcr.jdcrhttp.response
 
-data class SseEvent(
+data class JdcrSSEEvent(
     val id: String? = null,
     val event: String? = null,
     val data: String = "",

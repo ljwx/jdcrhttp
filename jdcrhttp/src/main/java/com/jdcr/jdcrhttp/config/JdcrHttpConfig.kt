@@ -51,6 +51,7 @@ data class JdcrHttpConfigRetry(
     var retryOn5xx: Boolean = false,
     /** 是否在 IOException 等传输异常时重试（占位，后续可按异常类型收紧） */
     var retryOnNetworkError: Boolean = true,
+    var exceptPost: Boolean = true,
 )
 
 /** 301/302 等重定向 */

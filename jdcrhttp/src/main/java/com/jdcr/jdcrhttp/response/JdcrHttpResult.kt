@@ -12,6 +12,7 @@ sealed interface JdcrHttpResult<out T> {
             data class Network(override val throwable: Throwable) : LocalError
             data class Timeout(override val throwable: Throwable) : LocalError
             data class Serialization(override val throwable: Throwable) : LocalError
+            data class WsClosed(override val throwable: Throwable) : LocalError
             data class Unknown(override val throwable: Throwable) : LocalError
         }
     }
@@ -27,8 +28,8 @@ fun <T> JdcrHttpResult<T>.getOrNull(): T? =
 fun <T> JdcrHttpResult<T>.getOrDefault(default: T): T =
     (this as? JdcrHttpResult.Success)?.data ?: default
 
-fun <T> JdcrHttpResult<T>.getOrElse(action: () -> JdcrHttpResult<T>) =
-    (this as? JdcrHttpResult.Success)?.data ?: action()
+fun <T> JdcrHttpResult<T>.getOrElse(action: (JdcrHttpResult.Failure?) -> Unit) =
+    (this as? JdcrHttpResult.Success)?.data ?: action(this as? JdcrHttpResult.Failure)
 
 fun <T> JdcrHttpResult<T>.getOrThrow() =
     (this as? JdcrHttpResult.Success)?.data ?: throw IllegalStateException("请求没有成功")

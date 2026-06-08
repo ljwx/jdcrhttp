@@ -14,7 +14,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 fun WebSocketSession.incomingText(): Flow<String> = flow {

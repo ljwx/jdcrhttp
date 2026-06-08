@@ -22,11 +22,13 @@ import io.ktor.websocket.readText
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.jdcr.jdcrlog.JdcrLog
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        JdcrLog.enable(true, this.cacheDir.toString()+"/test/log.txt")
         val ws = JdcrWebsocketManager()
         lifecycleScope.launch {
             ws.webSocket("wss://echo.websocket.org") {

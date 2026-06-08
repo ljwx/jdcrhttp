@@ -3,6 +3,7 @@ package com.jdcr.jdcrhttp
 import com.jdcr.jdcrhttp.auth.JdcrHttpAuthUtils
 import com.jdcr.jdcrhttp.config.JdcrHttpConfig
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
+import com.jdcr.jdcrhttp.util.JdcrHttpUtils
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.cio.CIO
@@ -19,6 +20,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.plugin
@@ -134,7 +136,12 @@ object JdcrHttpClientFactory {
                     level = config.log.level // Ktor 日志级别（如 INFO、ALL、BODY）
                     logger = object : Logger {
                         override fun log(message: String) {
-                            JdcrHttpLog.d(message) // 输出到项目日志
+                            val output = when(level) {
+                                LogLevel.INFO  -> message
+                                else -> JdcrHttpUtils.sanitizeLogMessage(message, "****")
+                            }
+
+                            JdcrHttpLog.d(output) // 输出到项目日志
                         }
                     }
                 }

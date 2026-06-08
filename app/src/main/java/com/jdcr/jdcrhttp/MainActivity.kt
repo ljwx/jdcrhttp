@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
         JdcrLog.enable(true, this.cacheDir.toString()+"/test/log.txt")
         val ws = JdcrWebsocketManager.initInstance("")
         lifecycleScope.launch {
-            ws.webSocket("wss://test-cone-ai-web.codemao.cn/ws/increment/bidi?access_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJDb2RlbWFvIEF1dGgiLCJ1c2VyX3R5cGUiOiJzdHVkZW50IiwiZGV2aWNlX2lkIjo0ODAyMywidXNlcl9pZCI6MTAwMDcxMDkwOCwiaXNzIjoiQXV0aCBTZXJ2aWNlIiwicGlkIjoiQjNMOG9YVEsiLCJleHAiOjQxMDI0NDQ3OTksImlhdCI6MTc4MDA0ODY1NCwianRpIjoiOWFiNjBkNjYtMGU1MS00MzBhLWFiODItZDliNjg5NDk5N2U1In0.ZY8Yi2Hf2gid_NxmlHtwJyl2X6LOkOikgoJvYoe7oPQ") {
+            ws.webSocket("wss://test-cone-ai-web.codemao.cn/ws/increment/bidi?access_token=Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJDb2RlbWFvIEF1dGgiLCJ1c2VyX3R5cGUiOiJzdHVkZW50IiwiZGV2aWNlX2lkIjo0ODAyMywidXNlcl9pZCI6MTAwMDcxMDkwOCwiaXNzIjoiQXV0aCBTZXJ2aWNlIiwicGlkIjoiQjNMOG9YVEsiLCJleHAiOjQxMDI0NDQ3OTksImlhdCI6MTc4MDA0ODY1NCwianRpIjoiOWFiNjBkNjYtMGU1MS00MzBhLWFiODItZDliNjg5NDk5N2U1In0.ZY8Yi2Hf2gid_NxmlHtwJyl2X6LOkOikgoJvYoe7oPQ") {
 
                 launch {
 

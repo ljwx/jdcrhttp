@@ -1,6 +1,7 @@
 package com.jdcr.jdcrwebsocket
 
 import com.jdcr.jdcrhttp.IJdcrHttpManager
+import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import com.jdcr.jdcrwebsocket.client.JdcrWebSocketFactory
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -15,6 +16,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.cancellation.CancellationException
 
 fun WebSocketSession.incomingText(): Flow<String> = flow {
     val channel: ReceiveChannel<Frame> = incoming
@@ -63,18 +65,24 @@ class JdcrWebsocketManager(
         handler: suspend DefaultClientWebSocketSession.() -> Unit,
     ) {
         val url = resolveUrl(pathOrUrl)
-        client.webSocket(url, request) {
-            val session = this
-            sessions.compute(url) { _, set ->
-                (set ?: ConcurrentHashMap.newKeySet()).apply { add(session) }
-            }
-            try {
-                handler()
-            } finally {
+        try {
+            client.webSocket(url, request) {
+                val session = this
                 sessions.compute(url) { _, set ->
-                    set?.apply { remove(session) }?.takeIf { it.isNotEmpty() }
+                    (set ?: ConcurrentHashMap.newKeySet()).apply { add(session) }
+                }
+                try {
+                    handler()
+                } finally {
+                    sessions.compute(url) { _, set ->
+                        set?.apply { remove(session) }?.takeIf { it.isNotEmpty() }
+                    }
                 }
             }
+        } catch (ce: CancellationException) {
+            throw ce                       // 协程取消必须 rethrow,别吞
+        } catch (e: Throwable) {
+            JdcrHttpLog.w("WebSocket 失败: $url ${e.message}")
         }
     }
 

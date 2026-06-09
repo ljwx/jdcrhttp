@@ -19,6 +19,7 @@ import io.ktor.websocket.readBytes
 import io.ktor.websocket.readReason
 import io.ktor.websocket.readText
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -71,7 +72,7 @@ class JdcrWebSocketManager(
         pathOrUrl: String,
         request: HttpRequestBuilder.() -> Unit = {},
         onMessage: (WsMessage) -> Unit,
-        handler: suspend DefaultClientWebSocketSession.() -> Unit,
+        onReady: suspend DefaultClientWebSocketSession.() -> Unit,
     ): JdcrHttpResult<Any> {
         val url = resolveUrl(pathOrUrl)
         var session: DefaultClientWebSocketSession? = null
@@ -94,7 +95,7 @@ class JdcrWebSocketManager(
                         }
                     }
                     launch {
-                        session.handler()
+                        session.onReady()
                     }
                 }
 

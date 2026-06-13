@@ -1,6 +1,6 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    alias(jdcr.plugins.android.library)
+    alias(jdcr.plugins.kotlin.android)
     `maven-publish`
 }
 
@@ -34,27 +34,21 @@ android {
 }
 
 dependencies {
-    val kotVersion = "1.6.0"
-    api("androidx.core:core-ktx:$kotVersion")
-    // 2. 引入协程 (建议使用 1.6.4)
-    val coroutinesVersion = "1.6.4"
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion")
+    api(jdcr.jdcr.dev.base)
 
-    val ktorVersion = "2.3.12"
-    api("io.ktor:ktor-client-core:$ktorVersion")
-    api("io.ktor:ktor-client-cio:$ktorVersion") // 纯 Kotlin 引擎
+    api(jdcr.ktor.client.core)
+    api(jdcr.ktor.client.cio) // 纯 Kotlin 引擎
 
     // JSON 序列化（官方）
-    api("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    api("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+    api(jdcr.ktor.client.negotiation)
+    api(jdcr.ktor.client.serialization)
 
-    api("io.ktor:ktor-client-logging:$ktorVersion")
+    api(jdcr.ktor.client.logging)
 
-    api("io.ktor:ktor-client-encoding:$ktorVersion")
-    api("io.ktor:ktor-client-auth:$ktorVersion")
-    // 先固定到 Android 变体，避免 KMP 元数据在当前工程版本下错误挑选到 debug/js 产物
-    api("com.github.ljwx.jdcrlog:jdcrlog-android:1.3.0-SNAPSHOT")
+    api(jdcr.ktor.client.encoding)
+    api(jdcr.ktor.client.auth)
+
+    api(jdcr.jdcr.log)
 
 }
 

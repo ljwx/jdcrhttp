@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        JdcrLog.enable(true, this.cacheDir.toString() + "/test/log.txt")
+        JdcrLog.enable(true)
         val ws = JdcrWebSocketManager.initInstance("")
         lifecycleScope.launch {
             ws.connect(

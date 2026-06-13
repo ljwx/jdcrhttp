@@ -1,6 +1,6 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    alias(jdcr.plugins.android.library)
+    alias(jdcr.plugins.kotlin.android)
     `maven-publish`
 }
 
@@ -34,9 +34,8 @@ android {
 }
 
 dependencies {
-    val ktorVersion = "2.3.12"
-    api("io.ktor:ktor-client-websockets:$ktorVersion")
     api(project(":jdcrhttp"))
+    api(jdcr.ktor.client.websockets)
 
 }
 

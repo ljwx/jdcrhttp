@@ -13,4 +13,7 @@ fun resolveHttpUrl(baseUrl: String, pathOrUrl: String): String {
 interface IJdcrHttpManager {
     val baseUrl: String
     fun resolveUrl(pathOrUrl: String): String = resolveHttpUrl(baseUrl, pathOrUrl)
+
+    fun destroyClient()
+
 }

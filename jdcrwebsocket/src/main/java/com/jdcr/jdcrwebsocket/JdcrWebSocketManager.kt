@@ -10,7 +10,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.utils.io.core.Closeable
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
@@ -41,7 +40,7 @@ fun WebSocketSession.incomingText(): Flow<String> = flow {
 class JdcrWebSocketManager(
     private val client: HttpClient,
     override val baseUrl: String
-) : Closeable, IJdcrHttpManager {
+) : IJdcrHttpManager {
 
     companion object {
         @Volatile
@@ -127,9 +126,13 @@ class JdcrWebSocketManager(
             }
     }
 
-    override fun close() {
+    fun disconnectAll() {
         sessions.values.forEach { set -> set.forEach { runCatching { it.cancel() } } }
         sessions.clear()
+    }
+
+    override fun destroyClient() {
+        disconnectAll()
         client.close()
     }
 

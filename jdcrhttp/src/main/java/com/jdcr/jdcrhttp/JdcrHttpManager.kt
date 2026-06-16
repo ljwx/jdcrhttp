@@ -19,13 +19,12 @@ import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.ByteReadChannel
-import io.ktor.utils.io.core.Closeable
 import kotlinx.coroutines.flow.Flow
 
 class JdcrHttpManager(
     val client: HttpClient,
     override val baseUrl: String,
-) : Closeable, IJdcrHttpManager {
+) : IJdcrHttpManager {
 
     companion object {
         @Volatile
@@ -167,7 +166,7 @@ class JdcrHttpManager(
 //        block: HttpRequestBuilder.() -> Unit = {},
 //    ): String = getRaw(pathOrUrl, block).bodyAsText()
 
-    override fun close() {
+    override fun destroyClient() {
         client.close()
     }
 

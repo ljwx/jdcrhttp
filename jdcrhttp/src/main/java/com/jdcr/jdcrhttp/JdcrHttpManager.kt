@@ -5,6 +5,7 @@ import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.JdcrSSEEvent
 import com.jdcr.jdcrhttp.response.asSseEvents
 import com.jdcr.jdcrhttp.response.handleRequestResult
+import com.jdcr.jdcrhttp.response.map
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
@@ -63,23 +64,25 @@ class JdcrHttpManager(
         }.body()
     }
 
-    suspend inline fun connectSSE(
+    suspend inline fun getSSE(
         pathOrUrl: String,
         crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): ByteReadChannel = client.get {
-        timeout {
-            requestTimeoutMillis = 0
-        }
-        url(resolveUrl(pathOrUrl))
-        header(HttpHeaders.Accept, "text/event-stream")
-        header(HttpHeaders.CacheControl, "no-cache")
-        block()
-    }.bodyAsChannel()
+    ): JdcrHttpResult<ByteReadChannel> = handleRequestResult(pathOrUrl) {
+        client.get {
+            timeout {
+                requestTimeoutMillis = 0
+            }
+            url(resolveUrl(pathOrUrl))
+            header(HttpHeaders.Accept, "text/event-stream")
+            header(HttpHeaders.CacheControl, "no-cache")
+            block()
+        }.bodyAsChannel()
+    }
 
-    suspend inline fun connectSSEFlow(
+    suspend inline fun getSSEFlow(
         pathOrUrl: String,
         crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): Flow<JdcrSSEEvent> = connectSSE(pathOrUrl, block).asSseEvents()
+    ): JdcrHttpResult<Flow<JdcrSSEEvent>> = getSSE(pathOrUrl, block).map { it.asSseEvents() }
 
     suspend inline fun <reified T> post(
         pathOrUrl: String,
@@ -90,6 +93,26 @@ class JdcrHttpManager(
             block()
         }.body()
     }
+
+    suspend inline fun postSSE(
+        pathOrUrl: String,
+        crossinline block: HttpRequestBuilder.() -> Unit = {},
+    ): JdcrHttpResult<ByteReadChannel> = handleRequestResult<ByteReadChannel>(pathOrUrl) {
+        client.post {
+            timeout {
+                requestTimeoutMillis = 0
+            }
+            url(resolveUrl(pathOrUrl))
+            header(HttpHeaders.Accept, "text/event-stream")
+            header(HttpHeaders.CacheControl, "no-cache")
+            block()
+        }.bodyAsChannel()
+    }
+
+    suspend inline fun postSSEFlow(
+        pathOrUrl: String,
+        crossinline block: HttpRequestBuilder.() -> Unit = {},
+    ): JdcrHttpResult<Flow<JdcrSSEEvent>> = postSSE(pathOrUrl, block).map { it.asSseEvents() }
 
     suspend inline fun <reified T> put(
         pathOrUrl: String,

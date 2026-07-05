@@ -6,6 +6,7 @@ sealed interface JdcrHttpResult<out T> {
     sealed interface Failure : JdcrHttpResult<Nothing> {
         data class HttpError(val code: Int, val message: String, val body: String? = null) : Failure
         data class BusinessError(val code: Int, val message: String) : Failure
+        data class ConnectError(val throwable: Throwable) : Failure
         sealed interface LocalError : Failure {
             val throwable: Throwable
 

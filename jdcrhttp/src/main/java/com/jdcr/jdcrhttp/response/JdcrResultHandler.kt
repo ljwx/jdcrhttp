@@ -7,6 +7,7 @@ import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.ServerResponseException
 import io.ktor.client.plugins.websocket.WebSocketException
+import io.ktor.util.network.UnresolvedAddressException
 import io.ktor.utils.io.errors.IOException
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.serialization.SerializationException
@@ -32,7 +33,7 @@ suspend inline fun <reified T> getRequestFailResult(
             // 4xx 错误（400, 401, 403, 404 等）
             // 前提：expectSuccess = true
             val msg = runCatching { e.response.body<String>() }.getOrElse { e.message }
-            JdcrHttpLog.w("客户端错误: $pathOrUrl ${e.response.status},$msg")
+            JdcrHttpLog.wd("客户端错误", "$pathOrUrl ${e.response.status},$msg")
             JdcrHttpResult.Failure.HttpError(e.response.status.value, msg)
         }
 
@@ -40,37 +41,43 @@ suspend inline fun <reified T> getRequestFailResult(
             // 5xx 错误（500, 502, 503 等）
             // 前提：expectSuccess = true
             val msg = runCatching { e.response.body<String>() }.getOrElse { e.message }
-            JdcrHttpLog.w("服务端错误: $pathOrUrl ${e.response.status},$msg")
+            JdcrHttpLog.wd("服务端错误", "$pathOrUrl ${e.response.status},$msg")
             JdcrHttpResult.Failure.HttpError(e.response.status.value, msg)
+        }
+
+        is UnresolvedAddressException -> {
+            // 无法访问
+            JdcrHttpLog.wd("接口地址异常", "$pathOrUrl")
+            JdcrHttpResult.Failure.ConnectError(e)
         }
 
         is HttpRequestTimeoutException -> {
             // 请求超时
-            JdcrHttpLog.w("请求超时: $pathOrUrl")
+            JdcrHttpLog.wd("请求超时", "$pathOrUrl")
             JdcrHttpResult.Failure.LocalError.Timeout(e)
         }
 
         is ConnectTimeoutException -> {
             // 连接超时
-            JdcrHttpLog.w("连接超时: $pathOrUrl")
+            JdcrHttpLog.wd("连接超时", "$pathOrUrl")
             JdcrHttpResult.Failure.LocalError.Timeout(e)
         }
 
         is IOException -> {
             // 网络异常（断网、DNS 解析失败等）
-            JdcrHttpLog.w("网络异常: $pathOrUrl ${e.message}")
+            JdcrHttpLog.wd("网络异常", "$pathOrUrl ${e.message}")
             JdcrHttpResult.Failure.LocalError.Network(e)
         }
 
         is SerializationException -> {
             // JSON 解析失败
-            JdcrHttpLog.w("解析失败: $pathOrUrl")
+            JdcrHttpLog.wd("Json解析失败", "$pathOrUrl")
             JdcrHttpResult.Failure.LocalError.Serialization(e)
         }
 
         is CancellationException -> {
             // 协程取消（页面销毁等）
-            JdcrHttpLog.w("协程取消: $pathOrUrl")
+            JdcrHttpLog.wd("协程取消", "$pathOrUrl")
             throw e
         }
 
@@ -88,7 +95,7 @@ suspend inline fun <reified T> getRequestFailResult(
 
         else -> {
             // 兜底捕获
-            JdcrHttpLog.w("未知异常: $pathOrUrl ${e.message}")
+            JdcrHttpLog.wd("未知异常", "$pathOrUrl ${e.message}")
             JdcrHttpResult.Failure.LocalError.Unknown(e)
         }
 

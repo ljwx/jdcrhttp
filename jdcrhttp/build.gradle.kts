@@ -50,6 +50,9 @@ dependencies {
 
     api(jdcr.jdcr.log)
 
+    api("io.ktor:ktor-client-okhttp:2.2.4")
+    api("com.squareup.okhttp3:okhttp:4.2.2")
+
 }
 
 afterEvaluate {

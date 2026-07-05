@@ -3,11 +3,12 @@ package com.jdcr.jdcrhttp
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.JdcrSSEEvent
-import com.jdcr.jdcrhttp.response.asSseEvents
+import com.jdcr.jdcrhttp.response.asSseEventsResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
 import com.jdcr.jdcrhttp.response.map
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
@@ -23,7 +24,7 @@ import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
 
 class JdcrHttpManager(
-    val client: HttpClient,
+    @PublishedApi internal var client: HttpClient,
     override val baseUrl: String,
 ) : IJdcrHttpManager {
 
@@ -70,11 +71,12 @@ class JdcrHttpManager(
     ): JdcrHttpResult<ByteReadChannel> = handleRequestResult(pathOrUrl) {
         client.get {
             timeout {
-                requestTimeoutMillis = 0
+                requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
             }
             url(resolveUrl(pathOrUrl))
             header(HttpHeaders.Accept, "text/event-stream")
             header(HttpHeaders.CacheControl, "no-cache")
+            header(HttpHeaders.AcceptEncoding, "identity")
             block()
         }.bodyAsChannel()
     }
@@ -82,7 +84,8 @@ class JdcrHttpManager(
     suspend inline fun getSSEFlow(
         pathOrUrl: String,
         crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<Flow<JdcrSSEEvent>> = getSSE(pathOrUrl, block).map { it.asSseEvents() }
+    ): JdcrHttpResult<Flow<JdcrHttpResult<JdcrSSEEvent>>> =
+        getSSE(pathOrUrl, block).map { it.asSseEventsResult(pathOrUrl) }
 
     suspend inline fun <reified T> post(
         pathOrUrl: String,
@@ -100,11 +103,12 @@ class JdcrHttpManager(
     ): JdcrHttpResult<ByteReadChannel> = handleRequestResult<ByteReadChannel>(pathOrUrl) {
         client.post {
             timeout {
-                requestTimeoutMillis = 0
+                requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
             }
             url(resolveUrl(pathOrUrl))
             header(HttpHeaders.Accept, "text/event-stream")
             header(HttpHeaders.CacheControl, "no-cache")
+            header(HttpHeaders.AcceptEncoding, "identity")
             block()
         }.bodyAsChannel()
     }
@@ -112,7 +116,8 @@ class JdcrHttpManager(
     suspend inline fun postSSEFlow(
         pathOrUrl: String,
         crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<Flow<JdcrSSEEvent>> = postSSE(pathOrUrl, block).map { it.asSseEvents() }
+    ): JdcrHttpResult<Flow<JdcrHttpResult<JdcrSSEEvent>>> =
+        postSSE(pathOrUrl, block).map { it.asSseEventsResult(pathOrUrl) }
 
     suspend inline fun <reified T> put(
         pathOrUrl: String,
@@ -191,6 +196,7 @@ class JdcrHttpManager(
 
     override fun destroyClient() {
         client.close()
+        manager = null
     }
 
 }

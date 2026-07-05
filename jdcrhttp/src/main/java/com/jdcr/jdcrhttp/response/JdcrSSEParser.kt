@@ -1,15 +1,20 @@
 package com.jdcr.jdcrhttp.response
 
+import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * 按 W3C SSE 规范解析:空行分隔事件,id 字段粘性保留,以 ":" 开头为注释行。
  */
-fun ByteReadChannel.asSseEvents(): Flow<JdcrSSEEvent> = flow {
+fun ByteReadChannel.asSseEventsResult(
+    pathOrUrl: String
+): Flow<JdcrHttpResult<JdcrSSEEvent>> = flow<JdcrHttpResult<JdcrSSEEvent>> {
     var id: String? = null
     var event: String? = null
     var retry: Long? = null
@@ -17,11 +22,13 @@ fun ByteReadChannel.asSseEvents(): Flow<JdcrSSEEvent> = flow {
     suspend fun flushEventResponse() {
         if (data.isEmpty() && event == null) return
         emit(
-            JdcrSSEEvent(
-                id = id,
-                event = event,
-                data = data.toString().removeSuffix("\n"),
-                retry = retry,
+            JdcrHttpResult.Success(
+                JdcrSSEEvent(
+                    id = id,
+                    event = event,
+                    data = data.toString().removeSuffix("\n"),
+                    retry = retry,
+                )
             )
         )
         // 按规范:id 在事件间是粘性的,其余字段每个事件后重置
@@ -31,6 +38,7 @@ fun ByteReadChannel.asSseEvents(): Flow<JdcrSSEEvent> = flow {
     }
     while (!isClosedForRead) {
         val line = readUTF8Line(Int.MAX_VALUE) ?: break
+        JdcrHttpLog.v("SSE读到行: [$line]")
         when {
             line.isEmpty() -> flushEventResponse()
             line.startsWith(":") -> Unit // 注释行
@@ -49,4 +57,12 @@ fun ByteReadChannel.asSseEvents(): Flow<JdcrSSEEvent> = flow {
         }
     }
     flushEventResponse()
+}.catch { e ->
+    if (e is CancellationException) throw e
+    val exception = e as? Exception ?: Exception(e)
+    if (pathOrUrl.isNotEmpty()) {
+        emit(getRequestFailResult(pathOrUrl, exception))
+    } else {
+        emit(JdcrHttpResult.Failure.LocalError.Network(exception))
+    }
 }.flowOn(Dispatchers.IO)

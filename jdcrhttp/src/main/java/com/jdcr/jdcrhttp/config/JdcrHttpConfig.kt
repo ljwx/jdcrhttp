@@ -85,7 +85,7 @@ data class JdcrHttpConfigCookies(
 
 /** Accept-Encoding：gzip / deflate 等（需 ktor-client-encoding） */
 data class JdcrHttpConfigCompression(
-    val enabled: Boolean = true,
+    val enabled: Boolean = false,
 )
 
 /**

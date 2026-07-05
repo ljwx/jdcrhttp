@@ -8,4 +8,9 @@ object JdcrHttpLog : JdcrLogBase() {
         setDefaultTag("http")
     }
 
+    fun wd(wMessage: String, dMessage: String) {
+        w(wMessage)
+        d(dMessage)
+    }
+
 }

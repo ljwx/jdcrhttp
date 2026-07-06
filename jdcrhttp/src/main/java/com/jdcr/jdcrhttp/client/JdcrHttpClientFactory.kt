@@ -83,6 +83,14 @@ object JdcrHttpClientFactory {
                     retryOnExceptionIf { request, cause ->
                         config.retry.retryOnNetworkError && cause is IOException && // IOException 时是否重试
                                 (!config.retry.exceptPost || request.method != HttpMethod.Post) // 不是 POST 时才重试
+//                        config.retry.retryOnNetworkError &&
+//                                (!config.retry.exceptPost || request.method != HttpMethod.Post) &&
+//                                (
+//                                        cause is IOException ||
+//                                                cause is ConnectTimeoutException ||
+//                                                cause is SocketTimeoutException ||
+//                                                cause is HttpRequestTimeoutException
+//                                        )
                     }
                     exponentialDelay() // 重试间隔：指数退避
                 }

@@ -10,7 +10,7 @@ import io.ktor.client.plugins.logging.LogLevel
 data class JdcrHttpConfigEngine(
     val maxConnectionsCount: Int = 64,
     /** 建连失败时的额外尝试次数语义：`connectAttempts = retryTimes + 1` */
-    val retryTimes: Int = 1,
+    val retryTimes: Int = 0,
     val maxConnectionsPerRoute: Int = 32,
     val pipelineMaxSize: Int = 20,
     val keepAliveTimeMs: Long = 30_000L,

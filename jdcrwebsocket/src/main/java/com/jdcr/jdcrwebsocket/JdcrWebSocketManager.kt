@@ -3,8 +3,11 @@ package com.jdcr.jdcrwebsocket
 import com.jdcr.jdcrhttp.IJdcrHttpManager
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.getRequestFailResult
+import com.jdcr.jdcrhttp.response.handleRequestResult
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import com.jdcr.jdcrwebsocket.client.JdcrWebSocketFactory
+import com.jdcr.jdcrwebsocket.data.JdcrWsConnection
+import com.jdcr.jdcrwebsocket.data.WsEvent
 import com.jdcr.jdcrwebsocket.data.WsMessage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -17,13 +20,21 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
 import io.ktor.websocket.readReason
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.cancellation.CancellationException
 
 fun WebSocketSession.incomingText(): Flow<String> = flow {
     val channel: ReceiveChannel<Frame> = incoming
@@ -63,9 +74,15 @@ class JdcrWebSocketManager(
         }
     }
 
+    @PublishedApi
+    internal val wsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val sessions =
         ConcurrentHashMap<String, MutableSet<DefaultClientWebSocketSession>>()
 
+    private val connections = ConcurrentHashMap<String, MutableSet<JdcrWsConnection>>()
+
+    @Deprecated("Use connectConnection instead")
     suspend fun connect(
         pathOrUrl: String,
         request: HttpRequestBuilder.() -> Unit = {},
@@ -110,8 +127,107 @@ class JdcrWebSocketManager(
         }
     }
 
+    private fun addConnection(
+        url: String,
+        connection: JdcrWsConnection,
+    ) {
+        connections.compute(url) { _, set ->
+            (set ?: ConcurrentHashMap.newKeySet()).apply {
+                add(connection)
+            }
+        }
+    }
+
+    private fun removeConnection(
+        url: String,
+        connection: JdcrWsConnection,
+    ) {
+        connections.compute(url) { _, set ->
+            set?.apply {
+                remove(connection)
+            }?.takeUnless {
+                it.isEmpty()
+            }
+        }
+    }
+
+    suspend fun connectConnection(
+        pathOrUrl: String,
+        request: HttpRequestBuilder.() -> Unit = {},
+    ): JdcrHttpResult<JdcrWsConnection> = handleRequestResult(pathOrUrl) {
+
+        val url = resolveUrl(pathOrUrl)
+        val session = client.webSocketSession(urlString = url, block = request)
+        val events = Channel<JdcrHttpResult<WsEvent>>(Channel.BUFFERED)
+        var connection: JdcrWsConnection? = null
+        val readJob = wsScope.launch {
+            try {
+                events.send(JdcrHttpResult.Success(WsEvent.Open))
+
+                for (frame in session.incoming) {
+                    when (frame) {
+                        is Frame.Text -> {
+                            events.send(JdcrHttpResult.Success(WsEvent.Text(frame.readText())))
+                        }
+
+                        is Frame.Binary -> {
+                            events.send(JdcrHttpResult.Success(WsEvent.Binary(frame.readBytes())))
+                        }
+
+                        is Frame.Close -> {
+                            val reason = frame.readReason()?.message ?: "未知原因"
+                            JdcrHttpLog.w("收到关闭帧:$reason")
+                            events.send(JdcrHttpResult.Success(WsEvent.Closing(reason)))
+                            break
+                        }
+
+                        is Frame.Ping -> JdcrHttpLog.i("🏓 收到 Ping")
+                        is Frame.Pong -> JdcrHttpLog.i("🏓 收到 Pong")
+                    }
+                }
+
+                val closeReason = session.closeReason.await()?.message
+                events.send(JdcrHttpResult.Success(WsEvent.Closed(closeReason)))
+                events.close()
+            } catch (e: CancellationException) {
+                events.close(e)
+                return@launch
+            } catch (e: Exception) {
+                events.trySend(getRequestFailResult(pathOrUrl, e))
+            } finally {
+                events.close()
+                runCatching { session.close() }
+                connection?.let {
+                    removeConnection(url, it)
+                }
+            }
+        }
+
+        connection = JdcrWsConnection(
+            pathOrUrl = pathOrUrl,
+            events = events.receiveAsFlow()
+                .onCompletion {
+                    readJob.cancel()
+                },
+            session = session,
+            readJob = readJob,
+            onClose = { conn ->
+                removeConnection(url, conn)
+            },
+        )
+        addConnection(url, connection)
+        connection
+    }
+
     suspend fun disconnect(pathOrUrl: String) {
         val url = resolveUrl(pathOrUrl)
+        val snapshot = connections.remove(url)?.toList().orEmpty()
+        snapshot.forEach { connection ->
+            runCatching {
+                connection.close("手动断开连接")
+            }
+        }
+        //@Deprecated
         sessions.remove(url)
             ?.forEach {
                 runCatching {
@@ -125,13 +241,30 @@ class JdcrWebSocketManager(
             }
     }
 
-    fun disconnectAll() {
+    private fun disconnectAll(onFinish: (() -> Unit)?) {
+        val snapshot = connections.values.flatMap { it.toList() }
+        connections.clear()
+        wsScope.launch {
+            snapshot.forEach { connection ->
+                runCatching {
+                    connection.close("手动断开全部连接")
+                }
+            }
+            onFinish?.invoke()
+        }
+        //@Deprecated
         sessions.values.forEach { set -> set.forEach { runCatching { it.cancel() } } }
         sessions.clear()
     }
 
+    fun disconnectAll() {
+        disconnectAll(null)
+    }
+
     override fun destroyClient() {
-        disconnectAll()
+        connections.clear()
+        sessions.clear()
+        wsScope.cancel()
         client.close()
         manager = null
     }

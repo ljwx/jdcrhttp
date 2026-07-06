@@ -41,10 +41,10 @@ object HttpTest {
 
     fun sseGet() {
         coroutine.launch {
-            manager.getSSEFlow("https://postman-echo.com/server-events/5", {
+            manager.getSSEConnection("https://postman-echo.com/server-events/5", {
                 header("Accept-Encoding", "identity")
             }).onSuccess {
-                it.collect {
+                it.events.collect {
                     it.onSuccess {
                         JdcrHttpLog.d("接收的数据:${it.data}")
                     }
@@ -72,15 +72,15 @@ object HttpTest {
 
     fun ssePostFlow() {
         coroutine.launch {
-            manager.postSSEFlow("http://10.240.45.68:5001/sse",{
-                retry {
-                    maxRetries = 0
-                }
+            manager.postSSEConnection("http://10.240.45.68:5001/sse", {
+//                retry {
+//                    maxRetries = 0 //post重试被排除了
+//                }
                 timeout {
                     connectTimeoutMillis = 5000
                 }
             }).onSuccess {
-                it.collect {
+                it.events.collect {
                     it.onSuccess {
                         JdcrHttpLog.d("接收的数据:${it.data}")
                     }

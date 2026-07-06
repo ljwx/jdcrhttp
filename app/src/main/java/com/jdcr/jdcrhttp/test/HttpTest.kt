@@ -3,24 +3,27 @@ package com.jdcr.jdcrhttp.test
 import com.jdcr.jdcrbase.coroutine.JdcrSafeCoroutineScope
 import com.jdcr.jdcrhttp.JdcrHttpManager
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
+import com.jdcr.jdcrhttp.response.JdcrSseLineParser
 import com.jdcr.jdcrhttp.response.getOrElse
 import com.jdcr.jdcrhttp.response.onFailure
 import com.jdcr.jdcrhttp.response.onSuccess
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import com.jdcr.jdcrwebsocket.JdcrWebSocketManager
+import io.ktor.client.plugins.retry
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.header
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import okio.IOException
-import java.util.concurrent.TimeUnit
+
+//import okhttp3.Call
+//import okhttp3.Callback
+//import okhttp3.MediaType.Companion.toMediaType
+//import okhttp3.OkHttpClient
+//import okhttp3.Request
+//import okhttp3.RequestBody.Companion.toRequestBody
+//import okhttp3.Response
+//import okio.IOException
 
 object HttpTest {
 
@@ -54,19 +57,34 @@ object HttpTest {
 
     fun ssePost() {
         coroutine.launch {
-            manager.postSSE("http://192.168.31.40:5001/sse", {
-//                header("Content-Type", "application/json")
-                header("Accept-Encoding", "identity")
+            val parser = JdcrSseLineParser()
+            manager.postSSE("http://10.240.45.67:5001/sse", onLine = {
+                parser.accept(it)?.also { JdcrHttpLog.d("解析:$it") }
+            }, onClosed = {
+                JdcrHttpLog.d("SSE关闭")
             }).onSuccess {
-                while (!it.isClosedForRead) {
-                    val line = it.readUTF8Line(Int.MAX_VALUE) ?: break
-                    JdcrHttpLog.d("解析数据:$line")
+
+            }.onFailure {
+                JdcrHttpLog.d("通信失败失败")
+            }
+        }
+    }
+
+    fun ssePostFlow() {
+        coroutine.launch {
+            manager.postSSEFlow("http://10.240.45.68:5001/sse",{
+                retry {
+                    maxRetries = 0
                 }
-//                it.collect {
-//                    it.onSuccess {
-//                        JdcrHttpLog.d("接收的数据:${it.data}")
-//                    }
-//                }
+                timeout {
+                    connectTimeoutMillis = 5000
+                }
+            }).onSuccess {
+                it.collect {
+                    it.onSuccess {
+                        JdcrHttpLog.d("接收的数据:${it.data}")
+                    }
+                }
             }.onFailure {
                 JdcrHttpLog.d("通信失败失败")
             }
@@ -74,46 +92,46 @@ object HttpTest {
     }
 
     fun ssePostOkHttp() {
-        val client = OkHttpClient.Builder()
-            .readTimeout(0, TimeUnit.SECONDS)      // 无限读取，SSE 必须
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .build()
-
-        val request = Request.Builder()
-            .url("http://192.168.31.40:5001/sse")
-//            .method("POST", null)
-            .post("{}".toRequestBody("application/json".toMediaType()))
-            .header("Accept", "text/event-stream")
-            .header("Cache-Control", "no-cache")
-            .build()
-
-        coroutine.launch {
-            client.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    JdcrHttpLog.w("okHttp请求失败${e.message}")
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    if (!response.isSuccessful) {
-                        JdcrHttpLog.w("okHttp请求失败")
-                        return
-                    }
-
-                    // 直接读 OkHttp 的 BufferedSource，没有 Ktor ByteChannel 中间层
-                    response.body!!.source().use { source ->
-                        while (!source.exhausted()) {
-                            val line = source.readUtf8Line() ?: break
-                            JdcrHttpLog.i("okHttp获取的数据:$line")
-                            // 解析 SSE 协议
-                            if (line.startsWith("data: ")) {
-                                val data = line.removePrefix("data: ")
-                            }
-                            // 空行表示事件结束，这里不需要处理
-                        }
-                    }
-                }
-            })
-        }
+//        val client = OkHttpClient.Builder()
+//            .readTimeout(0, TimeUnit.SECONDS)      // 无限读取，SSE 必须
+//            .connectTimeout(15, TimeUnit.SECONDS)
+//            .build()
+//
+//        val request = Request.Builder()
+//            .url("http://192.168.31.40:5001/sse")
+////            .method("POST", null)
+//            .post("{}".toRequestBody("application/json".toMediaType()))
+//            .header("Accept", "text/event-stream")
+//            .header("Cache-Control", "no-cache")
+//            .build()
+//
+//        coroutine.launch {
+//            client.newCall(request).enqueue(object : Callback {
+//                override fun onFailure(call: Call, e: IOException) {
+//                    JdcrHttpLog.w("okHttp请求失败${e.message}")
+//                }
+//
+//                override fun onResponse(call: Call, response: Response) {
+//                    if (!response.isSuccessful) {
+//                        JdcrHttpLog.w("okHttp请求失败")
+//                        return
+//                    }
+//
+//                    // 直接读 OkHttp 的 BufferedSource，没有 Ktor ByteChannel 中间层
+//                    response.body!!.source().use { source ->
+//                        while (!source.exhausted()) {
+//                            val line = source.readUtf8Line() ?: break
+//                            JdcrHttpLog.i("okHttp获取的数据:$line")
+//                            // 解析 SSE 协议
+//                            if (line.startsWith("data: ")) {
+//                                val data = line.removePrefix("data: ")
+//                            }
+//                            // 空行表示事件结束，这里不需要处理
+//                        }
+//                    }
+//                }
+//            })
+//        }
 
     }
 

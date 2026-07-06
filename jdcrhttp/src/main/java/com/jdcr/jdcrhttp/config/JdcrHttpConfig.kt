@@ -10,10 +10,10 @@ import io.ktor.client.plugins.logging.LogLevel
 data class JdcrHttpConfigEngine(
     val maxConnectionsCount: Int = 64,
     /** 建连失败时的额外尝试次数语义：`connectAttempts = retryTimes + 1` */
-    val retryTimes: Int = 2,
+    val retryTimes: Int = 1,
     val maxConnectionsPerRoute: Int = 32,
     val pipelineMaxSize: Int = 20,
-    val keepAliveTimeMs: Long = 5_000L,
+    val keepAliveTimeMs: Long = 30_000L,
     val allowHalfClose: Boolean = false,
 ) {
     init {
@@ -25,9 +25,9 @@ data class JdcrHttpConfigEngine(
 }
 
 data class JdcrHttpConfigTimeout(
-    val connectTimeoutMs: Long = 30_000L,
-    val socketTimeoutMs: Long = 60_000L,
-    val requestTimeoutMs: Long = 60_000L,
+    val connectTimeoutMs: Long = 15_000L,
+    val socketTimeoutMs: Long = 30_000L,
+    val requestTimeoutMs: Long = 30_000L,
 ) {
     init {
         require(connectTimeoutMs > 0)
@@ -46,7 +46,7 @@ data class JdcrHttpConfigLog(
  */
 data class JdcrHttpConfigRetry(
     val enabled: Boolean = true,
-    val maxRetries: Int = 2,
+    val maxRetries: Int = 1,
     /** 是否对 5xx 响应重试 */
     var retryOn5xx: Boolean = false,
     /** 是否在 IOException 等传输异常时重试（占位，后续可按异常类型收紧） */

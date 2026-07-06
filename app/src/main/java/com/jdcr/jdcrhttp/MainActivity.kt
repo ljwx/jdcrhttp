@@ -69,9 +69,9 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
                 Text("ssePost")
             }
             Button(onClick = {
-                HttpTest.ws()
+                HttpTest.ssePostFlow()
             }) {
-                Text("ws")
+                Text("ssePostFlow")
             }
         }
         Row {
@@ -79,6 +79,13 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
                 HttpTest.ssePostOkHttp()
             }) {
                 Text("ssePostOkHttp")
+            }
+        }
+        Row {
+            Button(onClick = {
+                HttpTest.ws()
+            }) {
+                Text("ws")
             }
         }
     }

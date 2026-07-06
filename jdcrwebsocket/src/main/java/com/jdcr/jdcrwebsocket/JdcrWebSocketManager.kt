@@ -18,7 +18,6 @@ import io.ktor.websocket.readBytes
 import io.ktor.websocket.readReason
 import io.ktor.websocket.readText
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -38,8 +37,8 @@ fun WebSocketSession.incomingText(): Flow<String> = flow {
 }
 
 class JdcrWebSocketManager(
-    private val client: HttpClient,
-    override val baseUrl: String
+    override val baseUrl: String,
+    private val client: HttpClient
 ) : IJdcrHttpManager {
 
     companion object {
@@ -52,7 +51,7 @@ class JdcrWebSocketManager(
             manager?.let { return it }
             return synchronized(this) {
                 manager ?: JdcrWebSocketManager(
-                    client ?: JdcrWebSocketFactory.getDefaultWebSocket(), baseUrl
+                    baseUrl, client ?: JdcrWebSocketFactory.getDefaultWebSocket()
                 ).also { manager = it }
             }
         }
@@ -85,8 +84,8 @@ class JdcrWebSocketManager(
                     launch {
                         for (frame in session.incoming) {
                             when (frame) {
-                                is Frame.Ping -> JdcrHttpLog.d("🏓 收到 Ping")
-                                is Frame.Pong -> JdcrHttpLog.d("🏓 收到 Pong")
+                                is Frame.Ping -> JdcrHttpLog.i("🏓 收到 Ping")
+                                is Frame.Pong -> JdcrHttpLog.i("🏓 收到 Pong")
                                 is Frame.Close -> JdcrHttpLog.w("收到关闭帧:${frame.readReason()?.message ?: "未知原因"}")
                                 is Frame.Text -> onMessage(WsMessage.Text(frame.readText()))
                                 is Frame.Binary -> onMessage(WsMessage.Binary(frame.readBytes()))
@@ -134,6 +133,7 @@ class JdcrWebSocketManager(
     override fun destroyClient() {
         disconnectAll()
         client.close()
+        manager = null
     }
 
 }

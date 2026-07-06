@@ -12,51 +12,78 @@ import kotlin.coroutines.cancellation.CancellationException
 /**
  * 按 W3C SSE 规范解析:空行分隔事件,id 字段粘性保留,以 ":" 开头为注释行。
  */
-fun ByteReadChannel.asSseEventsResult(
-    pathOrUrl: String
-): Flow<JdcrHttpResult<JdcrSSEEvent>> = flow<JdcrHttpResult<JdcrSSEEvent>> {
-    var id: String? = null
-    var event: String? = null
-    var retry: Long? = null
-    val data = StringBuilder()
-    suspend fun flushEventResponse() {
-        if (data.isEmpty() && event == null) return
-        emit(
-            JdcrHttpResult.Success(
-                JdcrSSEEvent(
-                    id = id,
-                    event = event,
-                    data = data.toString().removeSuffix("\n"),
-                    retry = retry,
-                )
+class JdcrSseLineParser {
+    private var id: String? = null
+    private var event: String? = null
+    private var retry: Long? = null
+    private val data = StringBuilder()
+
+    fun accept(line: String): JdcrSSEEvent? {
+        if (line.isEmpty()) {
+            if (data.isEmpty() && event == null) return null
+
+            val sseEvent = JdcrSSEEvent(
+                id = id,
+                event = event,
+                data = data.toString().removeSuffix("\n"),
+                retry = retry,
             )
+
+            event = null
+            retry = null
+            data.setLength(0)
+
+            return sseEvent
+        }
+
+        if (line.startsWith(":")) return null
+
+        val index = line.indexOf(':')
+        val field = if (index >= 0) line.substring(0, index) else line
+        var value = if (index >= 0) line.substring(index + 1) else ""
+        if (value.startsWith(" ")) value = value.substring(1)
+
+        when (field) {
+            "id" -> id = value
+            "event" -> event = value
+            "data" -> data.append(value).append('\n')
+            "retry" -> retry = value.toLongOrNull()
+        }
+
+        return null
+    }
+
+    fun finish(): JdcrSSEEvent? = flush()
+
+    private fun flush(): JdcrSSEEvent? {
+        if (data.isEmpty() && event == null) return null
+
+        val sseEvent = JdcrSSEEvent(
+            id = id,
+            event = event,
+            data = data.toString().removeSuffix("\n"),
+            retry = retry,
         )
-        // 按规范:id 在事件间是粘性的,其余字段每个事件后重置
+
         event = null
         retry = null
         data.setLength(0)
+
+        return sseEvent
     }
+
+}
+
+internal fun ByteReadChannel.asSseEventsResult(
+    pathOrUrl: String
+): Flow<JdcrHttpResult<JdcrSSEEvent>> = flow<JdcrHttpResult<JdcrSSEEvent>> {
+    val parser = JdcrSseLineParser()
     while (!isClosedForRead) {
         val line = readUTF8Line(Int.MAX_VALUE) ?: break
         JdcrHttpLog.v("SSE读到行: [$line]")
-        when {
-            line.isEmpty() -> flushEventResponse()
-            line.startsWith(":") -> Unit // 注释行
-            else -> {
-                val idx = line.indexOf(':')
-                val field = if (idx >= 0) line.substring(0, idx) else line
-                var value = if (idx >= 0) line.substring(idx + 1) else ""
-                if (value.startsWith(" ")) value = value.substring(1)
-                when (field) {
-                    "id" -> id = value
-                    "event" -> event = value
-                    "data" -> data.append(value).append('\n')
-                    "retry" -> retry = value.toLongOrNull()
-                }
-            }
-        }
+        parser.accept(line)?.also { emit(JdcrHttpResult.Success(it)) }
     }
-    flushEventResponse()
+    parser.finish()?.also { emit(JdcrHttpResult.Success(it)) }
 }.catch { e ->
     if (e is CancellationException) throw e
     val exception = e as? Exception ?: Exception(e)

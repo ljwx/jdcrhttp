@@ -4,33 +4,31 @@ import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.JdcrSSEEvent
 import com.jdcr.jdcrhttp.response.asSseEventsResult
+import com.jdcr.jdcrhttp.response.getRequestFailResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
-import com.jdcr.jdcrhttp.response.map
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.delete
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.patch
-import io.ktor.client.request.post
-import io.ktor.client.request.put
-import io.ktor.client.request.url
+import io.ktor.client.request.prepareGet
+import io.ktor.client.request.preparePost
+import io.ktor.client.statement.HttpStatement
 import io.ktor.client.statement.bodyAsChannel
-import io.ktor.http.HttpHeaders
-import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 class JdcrHttpManager(
-    @PublishedApi internal var client: HttpClient,
+    override var client: HttpClient,
     override val baseUrl: String,
-) : IJdcrHttpManager {
+) : JdcrHttpCore(client, baseUrl), IJdcrHttpManager {
 
     companion object {
         @Volatile
-        private var manager: JdcrHttpManager? = null
+        @PublishedApi
+        internal var manager: JdcrHttpManager? = null
         fun initInstance(
             baseUrl: String,
             client: HttpClient? = null
@@ -51,152 +49,75 @@ class JdcrHttpManager(
         }
     }
 
-    fun clearBearerTokenCache() {
-        JdcrHttpClientFactory.clearBearerTokenCache()
-    }
-
-    suspend inline fun <reified T> get(
+    private suspend fun openSSEFlow(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
-        client.get {
-            url(resolveUrl(pathOrUrl))
-            block()
-        }.body()
-    }
-
-    suspend inline fun getSSE(
-        pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<ByteReadChannel> = handleRequestResult(pathOrUrl) {
-        client.get {
-            timeout {
-                requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
-            }
-            url(resolveUrl(pathOrUrl))
-            header(HttpHeaders.Accept, "text/event-stream")
-            header(HttpHeaders.CacheControl, "no-cache")
-            header(HttpHeaders.AcceptEncoding, "identity")
-            block()
-        }.bodyAsChannel()
-    }
-
-    suspend inline fun getSSEFlow(
-        pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        createStatement: suspend () -> HttpStatement,
     ): JdcrHttpResult<Flow<JdcrHttpResult<JdcrSSEEvent>>> =
-        getSSE(pathOrUrl, block).map { it.asSseEventsResult(pathOrUrl) }
+        handleRequestResult(pathOrUrl) {
+            val events = Channel<JdcrHttpResult<JdcrSSEEvent>>(Channel.BUFFERED)
+            val connected = CompletableDeferred<Unit>()
 
-    suspend inline fun <reified T> post(
-        pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
-        client.post {
-            url(resolveUrl(pathOrUrl))
-            block()
-        }.body()
-    }
+            val readJob = sseScope.launch {
+                try {
+                    createStatement().execute { response ->
+                        connected.complete(Unit)
 
-    suspend inline fun postSSE(
-        pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<ByteReadChannel> = handleRequestResult<ByteReadChannel>(pathOrUrl) {
-        client.post {
-            timeout {
-                requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+                        response.bodyAsChannel()
+                            .asSseEventsResult(pathOrUrl)
+                            .collect { events.send(it) }
+                    }
+
+                    events.close()
+                } catch (e: Exception) {
+                    if (!connected.isCompleted) {
+                        connected.completeExceptionally(e)
+                        events.close(e)
+                        return@launch
+                    }
+
+                    if (e is CancellationException) {
+                        events.close(e)
+                        return@launch
+                    }
+
+                    events.trySend(getRequestFailResult(pathOrUrl, e))
+                    events.close()
+                }
             }
-            url(resolveUrl(pathOrUrl))
-            header(HttpHeaders.Accept, "text/event-stream")
-            header(HttpHeaders.CacheControl, "no-cache")
-            header(HttpHeaders.AcceptEncoding, "identity")
-            block()
-        }.bodyAsChannel()
-    }
 
-    suspend inline fun postSSEFlow(
+            try {
+                connected.await()
+            } catch (e: Exception) {
+                readJob.cancel()
+                throw e
+            }
+
+            events.receiveAsFlow()
+                .onCompletion {
+                    readJob.cancel()
+                }
+        }
+
+    suspend fun getSSEFlow(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        block: HttpRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<Flow<JdcrHttpResult<JdcrSSEEvent>>> =
-        postSSE(pathOrUrl, block).map { it.asSseEventsResult(pathOrUrl) }
+        openSSEFlow(pathOrUrl) {
+            client.prepareGet {
+                sseRequestConfig(pathOrUrl)
+                block()
+            }
+        }
 
-    suspend inline fun <reified T> put(
+    suspend fun postSSEFlow(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
-        client.put {
-            url(resolveUrl(pathOrUrl))
-            block()
-        }.body()
-    }
-
-    suspend inline fun <reified T> patch(
-        pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
-        client.patch {
-            url(resolveUrl(pathOrUrl))
-            block()
-        }.body()
-    }
-
-    suspend inline fun <reified T> delete(
-        pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
-    ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
-        client.delete {
-            url(resolveUrl(pathOrUrl))
-            block()
-        }.body()
-    }
-
-//    suspend fun getRaw(
-//        pathOrUrl: String,
-//        block: HttpRequestBuilder.() -> Unit = {},
-//    ): HttpResponse = client.get {
-//        url(resolveUrl(pathOrUrl))
-//        block()
-//    }
-//
-//    suspend fun postRaw(
-//        pathOrUrl: String,
-//        block: HttpRequestBuilder.() -> Unit = {},
-//    ): HttpResponse = client.post {
-//        url(resolveUrl(pathOrUrl))
-//        block()
-//    }
-//
-//    suspend fun putRaw(
-//        pathOrUrl: String,
-//        block: HttpRequestBuilder.() -> Unit = {},
-//    ): HttpResponse = client.put {
-//        url(resolveUrl(pathOrUrl))
-//        block()
-//    }
-//
-//    suspend fun patchRaw(
-//        pathOrUrl: String,
-//        block: HttpRequestBuilder.() -> Unit = {},
-//    ): HttpResponse = client.patch {
-//        url(resolveUrl(pathOrUrl))
-//        block()
-//    }
-//
-//    suspend fun deleteRaw(
-//        pathOrUrl: String,
-//        block: HttpRequestBuilder.() -> Unit = {},
-//    ): HttpResponse = client.delete {
-//        url(resolveUrl(pathOrUrl))
-//        block()
-//    }
-//
-//    suspend fun getText(
-//        pathOrUrl: String,
-//        block: HttpRequestBuilder.() -> Unit = {},
-//    ): String = getRaw(pathOrUrl, block).bodyAsText()
-
-    override fun destroyClient() {
-        client.close()
-        manager = null
-    }
+        block: HttpRequestBuilder.() -> Unit = {},
+    ): JdcrHttpResult<Flow<JdcrHttpResult<JdcrSSEEvent>>> =
+        openSSEFlow(pathOrUrl) {
+            client.preparePost {
+                sseRequestConfig(pathOrUrl)
+                block()
+            }
+        }
 
 }

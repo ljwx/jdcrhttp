@@ -1,12 +1,15 @@
 package com.jdcr.jdcrwebsocket.data
 
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
+import com.jdcr.jdcrhttp.response.getRequestFailResult
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.max
 
 class JdcrWsConnection(
     val pathOrUrl: String,
@@ -16,19 +19,35 @@ class JdcrWsConnection(
     private val onClose: suspend (JdcrWsConnection) -> Unit,
 ) {
 
-    suspend fun sendText(text: String) {
-        session.send(Frame.Text(text))
+    suspend fun sendText(text: String): JdcrHttpResult<Unit> {
+        return try {
+            session.send(Frame.Text(text))
+            JdcrHttpResult.Success(Unit)
+        } catch (e: Exception) {
+            getRequestFailResult(pathOrUrl, e)
+        }
     }
 
-    suspend fun sendBinary(bytes: ByteArray) {
-        session.send(Frame.Binary(true, bytes))
+    suspend fun sendBinary(bytes: ByteArray): JdcrHttpResult<Unit> {
+        return try {
+            session.send(Frame.Binary(true, bytes))
+            JdcrHttpResult.Success(Unit)
+        } catch (e: Exception) {
+            getRequestFailResult(pathOrUrl, e)
+        }
     }
 
-    suspend fun close(reason: String = "手动关闭") {
+    suspend fun close(reason: String = "手动关闭", timeout: Long = 3_000) {
         runCatching {
             session.close(CloseReason(CloseReason.Codes.NORMAL, reason))
         }
         onClose(this)
+        withTimeoutOrNull(max(1000, timeout)) {
+            readJob.join()
+        }
+        if (readJob.isActive) {
+            readJob.cancel()
+        }
     }
 
 }

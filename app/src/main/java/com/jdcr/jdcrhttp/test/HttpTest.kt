@@ -57,6 +57,7 @@ object HttpTest {
 
     fun ssePost() {
         coroutine.launch {
+            manager.post<String>("", )
             val parser = JdcrSseLineParser()
             manager.postSSE("http://10.240.45.67:5001/sse", onLine = {
                 parser.accept(it)?.also { JdcrHttpLog.d("解析:$it") }
@@ -72,7 +73,7 @@ object HttpTest {
 
     fun ssePostFlow() {
         coroutine.launch {
-            manager.postSSEConnection("http://10.240.45.68:5001/sse", {
+            manager.postSSEConnection("http://10.240.45.67:5001/sse", {
 //                retry {
 //                    maxRetries = 0 //post重试被排除了
 //                }
@@ -165,7 +166,9 @@ object HttpTest {
                 delay(5000)
 //                close(CloseReason(CloseReason.Codes.NORMAL, "测试完成"))
 
-            }.getOrElse { JdcrHttpLog.e("连接失败", null) }
+            }.getOrElse {
+                JdcrHttpLog.e("连接失败", null)
+            }
         }
     }
 

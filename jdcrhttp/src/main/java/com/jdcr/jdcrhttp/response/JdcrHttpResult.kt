@@ -4,8 +4,8 @@ sealed interface JdcrHttpResult<out T> {
 
     data class Success<T>(val data: T) : JdcrHttpResult<T>
     sealed interface Failure : JdcrHttpResult<Nothing> {
-        data class HttpError(val code: Int, val message: String, val body: String? = null) : Failure
-        data class BusinessError(val code: Int, val message: String) : Failure
+        data class HttpError(val code: Int, val message: String) : Failure
+        data class BusinessError(val code: Int, val message: String, val body: String?) : Failure
         data class ConnectError(val throwable: Throwable) : Failure
         sealed interface LocalError : Failure {
             val throwable: Throwable
@@ -29,11 +29,11 @@ fun <T> JdcrHttpResult<T>.getOrNull(): T? =
 fun <T> JdcrHttpResult<T>.getOrDefault(default: T): T =
     (this as? JdcrHttpResult.Success)?.data ?: default
 
-fun <T> JdcrHttpResult<T>.getOrElse(action: (JdcrHttpResult.Failure?) -> Unit) =
+fun <T> JdcrHttpResult<T>.getOrElse(action: (JdcrHttpResult.Failure?) -> T): T =
     (this as? JdcrHttpResult.Success)?.data ?: action(this as? JdcrHttpResult.Failure)
 
-fun <T> JdcrHttpResult<T>.getOrThrow() =
-    (this as? JdcrHttpResult.Success)?.data ?: throw IllegalStateException("请求没有成功")
+fun <T> JdcrHttpResult<T>.getOrThrow(): T =
+    (this as? JdcrHttpResult.Success)?.data ?: throw IllegalStateException("请求没有成功:$this")
 
 inline fun <T, R> JdcrHttpResult<T>.map(transform: (T) -> R): JdcrHttpResult<R> =
     when (this) {

@@ -14,11 +14,9 @@ class JdcrSseConnection(
     val pathOrUrl: String,
     val events: Flow<JdcrHttpResult<JdcrSSEEvent>>,
     private val readJob: Job,
-    private val onClose: suspend (JdcrSseConnection) -> Unit,
 ) {
     suspend fun close() {
         readJob.cancel()
-        onClose(this)
     }
 
 }

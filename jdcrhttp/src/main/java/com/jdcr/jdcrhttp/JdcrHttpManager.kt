@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
 class JdcrHttpManager(
-    override var client: HttpClient,
+    @PublishedApi override var client: HttpClient,
     override val baseUrl: String,
 ) : JdcrHttpCore(client, baseUrl), IJdcrHttpManager {
 
@@ -33,7 +33,12 @@ class JdcrHttpManager(
             baseUrl: String,
             client: HttpClient? = null
         ): JdcrHttpManager {
-            manager?.let { return it }
+            manager?.let { existing ->
+                require(existing.baseUrl == baseUrl) {
+                    "JdcrHttpManager已初始化为 ${existing.baseUrl}, 如需切换请先 destroyClient"
+                }
+                return existing
+            }
             return synchronized(this) {
                 manager ?: JdcrHttpManager(
                     client ?: JdcrHttpClientFactory.getDefaultHttp(),
@@ -49,7 +54,8 @@ class JdcrHttpManager(
         }
     }
 
-    private suspend fun openSSEConnection(
+    @PublishedApi
+    internal suspend fun openSSEConnection(
         pathOrUrl: String,
         createStatement: suspend () -> HttpStatement,
     ): JdcrHttpResult<JdcrSseConnection> =
@@ -90,8 +96,7 @@ class JdcrHttpManager(
                 events.receiveAsFlow().onCompletion {
                     readJob.cancel()
                 },
-                readJob,
-                {}
+                readJob
             )
 
             try {
@@ -104,9 +109,9 @@ class JdcrHttpManager(
             connection
         }
 
-    suspend fun getSSEConnection(
+    suspend inline fun getSSEConnection(
         pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: HttpRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<JdcrSseConnection> =
         openSSEConnection(pathOrUrl) {
             client.prepareGet {
@@ -115,9 +120,9 @@ class JdcrHttpManager(
             }
         }
 
-    suspend fun postSSEConnection(
+    suspend inline fun postSSEConnection(
         pathOrUrl: String,
-        block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: HttpRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<JdcrSseConnection> =
         openSSEConnection(pathOrUrl) {
             client.preparePost {

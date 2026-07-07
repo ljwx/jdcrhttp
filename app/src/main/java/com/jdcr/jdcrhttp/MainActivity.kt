@@ -38,7 +38,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
-    val ws = JdcrWebSocketManager.initInstance("")
     Column(modifier = modifier) {
         Row {
             Text(

@@ -21,10 +21,10 @@ import io.ktor.websocket.readBytes
 import io.ktor.websocket.readReason
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -59,7 +61,11 @@ class JdcrWebSocketManager(
             baseUrl: String,
             client: HttpClient? = null
         ): JdcrWebSocketManager {
-            manager?.let { return it }
+            manager?.let { existing ->
+                require(existing.baseUrl == baseUrl) {
+                    "JdcrWebSocketManager已初始化为 ${existing.baseUrl}, 如需切换请先 destroyClient"
+                }
+                return existing }
             return synchronized(this) {
                 manager ?: JdcrWebSocketManager(
                     baseUrl, client ?: JdcrWebSocketFactory.getDefaultWebSocket()
@@ -81,6 +87,7 @@ class JdcrWebSocketManager(
         ConcurrentHashMap<String, MutableSet<DefaultClientWebSocketSession>>()
 
     private val connections = ConcurrentHashMap<String, MutableSet<JdcrWsConnection>>()
+    private val connectionLock = Any()
 
     @Deprecated("Use connectConnection instead")
     suspend fun connect(
@@ -127,26 +134,30 @@ class JdcrWebSocketManager(
         }
     }
 
-    private fun addConnection(
+    private suspend fun addConnection(
         url: String,
         connection: JdcrWsConnection,
     ) {
-        connections.compute(url) { _, set ->
-            (set ?: ConcurrentHashMap.newKeySet()).apply {
-                add(connection)
+        synchronized(connectionLock) {
+            connections.compute(url) { _, set ->
+                (set ?: ConcurrentHashMap.newKeySet()).apply {
+                    add(connection)
+                }
             }
         }
     }
 
-    private fun removeConnection(
+    private suspend fun removeConnection(
         url: String,
         connection: JdcrWsConnection,
     ) {
-        connections.compute(url) { _, set ->
-            set?.apply {
-                remove(connection)
-            }?.takeUnless {
-                it.isEmpty()
+        synchronized(connectionLock) {
+            connections.compute(url) { _, set ->
+                set?.apply {
+                    remove(connection)
+                }?.takeUnless {
+                    it.isEmpty()
+                }
             }
         }
     }
@@ -160,7 +171,7 @@ class JdcrWebSocketManager(
         val session = client.webSocketSession(urlString = url, block = request)
         val events = Channel<JdcrHttpResult<WsEvent>>(Channel.BUFFERED)
         var connection: JdcrWsConnection? = null
-        val readJob = wsScope.launch {
+        val readJob = wsScope.launch(start = CoroutineStart.LAZY) {
             try {
                 events.send(JdcrHttpResult.Success(WsEvent.Open))
 
@@ -216,12 +227,15 @@ class JdcrWebSocketManager(
             },
         )
         addConnection(url, connection)
+        readJob.start()
         connection
     }
 
     suspend fun disconnect(pathOrUrl: String) {
         val url = resolveUrl(pathOrUrl)
-        val snapshot = connections.remove(url)?.toList().orEmpty()
+        val snapshot = synchronized(connectionLock) {
+            connections.remove(url)?.toList().orEmpty()
+        }
         snapshot.forEach { connection ->
             runCatching {
                 connection.close("手动断开连接")
@@ -241,16 +255,17 @@ class JdcrWebSocketManager(
             }
     }
 
-    private fun disconnectAll(onFinish: (() -> Unit)?) {
-        val snapshot = connections.values.flatMap { it.toList() }
-        connections.clear()
-        wsScope.launch {
-            snapshot.forEach { connection ->
-                runCatching {
-                    connection.close("手动断开全部连接")
+    suspend fun disconnectAllAwait() {
+        val snapshot = synchronized(connectionLock) {
+            connections.values.flatMap { it.toList() }
+                .also {
+                    connections.clear()
                 }
+        }
+        snapshot.forEach { connection ->
+            runCatching {
+                connection.close("手动断开全部连接")
             }
-            onFinish?.invoke()
         }
         //@Deprecated
         sessions.values.forEach { set -> set.forEach { runCatching { it.cancel() } } }
@@ -258,12 +273,16 @@ class JdcrWebSocketManager(
     }
 
     fun disconnectAll() {
-        disconnectAll(null)
+        wsScope.launch {
+            disconnectAllAwait()
+        }
     }
 
     override fun destroyClient() {
-        connections.clear()
-        sessions.clear()
+        synchronized(connectionLock) {
+            connections.clear()
+            sessions.clear()
+        }
         wsScope.cancel()
         client.close()
         manager = null

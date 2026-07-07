@@ -17,14 +17,23 @@ import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.put
+import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
+import io.ktor.http.withCharset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+
+inline fun <reified B : Any> HttpRequestBuilder.setJsonBodySerialized(body: B) {
+    contentType(ContentType.Application.Json.withCharset(Charsets.UTF_8))
+    setBody(body)
+}
 
 open class JdcrHttpCore(
     @PublishedApi internal open var client: HttpClient,
@@ -52,6 +61,7 @@ open class JdcrHttpCore(
     internal fun HttpRequestBuilder.sseRequestConfig(pathOrUrl: String) {
         timeout {
             requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+            socketTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
         }
         url(resolveUrl(pathOrUrl))
         header(HttpHeaders.Accept, "text/event-stream")

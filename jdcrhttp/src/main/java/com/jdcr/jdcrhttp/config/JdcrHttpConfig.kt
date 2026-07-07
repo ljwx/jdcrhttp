@@ -46,13 +46,17 @@ data class JdcrHttpConfigLog(
  */
 data class JdcrHttpConfigRetry(
     val enabled: Boolean = true,
-    val maxRetries: Int = 1,
+    val maxRetries: Int = 0,
     /** 是否对 5xx 响应重试 */
     var retryOn5xx: Boolean = false,
     /** 是否在 IOException 等传输异常时重试（占位，后续可按异常类型收紧） */
     var retryOnNetworkError: Boolean = true,
     var exceptPost: Boolean = true,
-)
+) {
+    init {
+        require(maxRetries >= 0) { "maxRetries 不能小于 0" }
+    }
+}
 
 /** 301/302 等重定向 */
 data class JdcrHttpConfigRedirect(

@@ -27,16 +27,23 @@ import kotlinx.coroutines.launch
 
 object HttpTest {
 
+    init {
+        JdcrHttpManager.initInstance("")
+        JdcrWebSocketManager.initInstance("")
+    }
+
     private val coroutine = JdcrSafeCoroutineScope()
     private var manager = JdcrHttpManager(JdcrHttpClientFactory.getDefaultHttp(), "")
-    private val ws = JdcrWebSocketManager.initInstance("")
+    private var ws = JdcrWebSocketManager.instance()
 
     fun destroy() {
         manager.destroyClient()
+        ws.destroyClient()
     }
 
     fun init() {
         manager = JdcrHttpManager.initInstance("")
+        ws = JdcrWebSocketManager.initInstance("")
     }
 
     fun sseGet() {

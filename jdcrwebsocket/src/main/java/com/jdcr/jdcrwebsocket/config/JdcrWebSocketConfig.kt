@@ -11,5 +11,5 @@ data class JdcrWebSocketConfig(
     val ping: JdcrWSPingConfig = JdcrWSPingConfig(),
     val connectTimeoutMs: Long = 15_000L,
     val maxFrameSize: Long = 6L * 1024 * 1024,
-    val logEnable: Boolean = false,
+    val logEnable: Boolean = true,
 )

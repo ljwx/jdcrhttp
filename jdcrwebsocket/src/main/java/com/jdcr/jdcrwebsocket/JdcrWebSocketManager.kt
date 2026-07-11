@@ -61,11 +61,12 @@ class JdcrWebSocketManager(
             baseUrl: String,
             client: HttpClient? = null
         ): JdcrWebSocketManager {
+            check(manager == null) {
+                "JdcrWebSocketManager已初始化, 如需切换请先 destroyClient"
+            }
             manager?.let { existing ->
-                require(existing.baseUrl == baseUrl) {
-                    "JdcrWebSocketManager已初始化为 ${existing.baseUrl}, 如需切换请先 destroyClient"
-                }
-                return existing }
+                return existing
+            }
             return synchronized(this) {
                 manager ?: JdcrWebSocketManager(
                     baseUrl, client ?: JdcrWebSocketFactory.getDefaultWebSocket()
@@ -279,6 +280,7 @@ class JdcrWebSocketManager(
     }
 
     override fun destroyClient() {
+        JdcrHttpLog.w("触发ws,destroyClient")
         synchronized(connectionLock) {
             connections.clear()
             sessions.clear()

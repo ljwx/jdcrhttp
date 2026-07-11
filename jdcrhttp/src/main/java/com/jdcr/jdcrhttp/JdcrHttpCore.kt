@@ -4,6 +4,7 @@ import com.jdcr.jdcrhttp.JdcrHttpManager.Companion.manager
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
+import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
@@ -202,6 +203,7 @@ open class JdcrHttpCore(
 //    ): String = getRaw(pathOrUrl, block).bodyAsText()
 
     override fun destroyClient() {
+        JdcrHttpLog.w("触发http,destroyClient")
         sseScope.cancel()
         client.close()
         manager = null

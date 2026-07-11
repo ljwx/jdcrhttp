@@ -33,10 +33,10 @@ class JdcrHttpManager(
             baseUrl: String,
             client: HttpClient? = null
         ): JdcrHttpManager {
+            check(manager == null) {
+                "JdcrHttpManager已初始化, 如需切换请先 destroyClient"
+            }
             manager?.let { existing ->
-                require(existing.baseUrl == baseUrl) {
-                    "JdcrHttpManager已初始化为 ${existing.baseUrl}, 如需切换请先 destroyClient"
-                }
                 return existing
             }
             return synchronized(this) {

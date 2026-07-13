@@ -75,6 +75,10 @@ class JdcrWebSocketManager(
             }
         }
 
+        fun isInitialized(): Boolean {
+            return manager != null
+        }
+
         fun instance(): JdcrWebSocketManager {
             return requireNotNull(manager) {
                 "请先初始化,JdcrWebsocketManager.initInstance()"

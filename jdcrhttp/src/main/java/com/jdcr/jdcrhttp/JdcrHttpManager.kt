@@ -48,6 +48,10 @@ class JdcrHttpManager(
             }
         }
 
+        fun isInitialized(): Boolean {
+            return manager != null
+        }
+
         fun instance(): JdcrHttpManager {
             return requireNotNull(manager) {
                 "请先初始化,JdcrHttpManager.initInstance()"

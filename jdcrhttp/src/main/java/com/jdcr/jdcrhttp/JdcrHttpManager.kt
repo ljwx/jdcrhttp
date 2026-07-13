@@ -7,6 +7,7 @@ import com.jdcr.jdcrhttp.response.JdcrSseConnection
 import com.jdcr.jdcrhttp.response.asSseEventsResult
 import com.jdcr.jdcrhttp.response.getRequestFailResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
+import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.prepareGet
@@ -36,14 +37,14 @@ class JdcrHttpManager(
             check(manager == null) {
                 "JdcrHttpManager已初始化, 如需切换请先 destroyClient"
             }
-            manager?.let { existing ->
-                return existing
-            }
-            return synchronized(this) {
+            return manager ?: synchronized(this) {
                 manager ?: JdcrHttpManager(
                     client ?: JdcrHttpClientFactory.getDefaultHttp(),
                     baseUrl
-                ).also { manager = it }
+                ).also {
+                    JdcrHttpLog.i("JdcrHttpManager初始化成功")
+                    manager = it
+                }
             }
         }
 

@@ -33,8 +33,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -67,10 +65,13 @@ class JdcrWebSocketManager(
             manager?.let { existing ->
                 return existing
             }
-            return synchronized(this) {
+            return manager ?: synchronized(this) {
                 manager ?: JdcrWebSocketManager(
                     baseUrl, client ?: JdcrWebSocketFactory.getDefaultWebSocket()
-                ).also { manager = it }
+                ).also {
+                    JdcrHttpLog.i("JdcrWebSocketManager初始化成功")
+                    manager = it
+                }
             }
         }
 

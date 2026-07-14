@@ -2,6 +2,7 @@ package com.jdcr.jdcrwebsocket.data
 
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.getRequestFailResult
+import com.jdcr.jdcrhttp.serialization.JdcrJsonCodec
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
@@ -26,6 +27,14 @@ class JdcrWsConnection(
         } catch (e: Exception) {
             getRequestFailResult(pathOrUrl, e)
         }
+    }
+
+    suspend inline fun <reified T> sendTextData(data: T): JdcrHttpResult<Unit> {
+        val text = JdcrJsonCodec.toJson(data).getOrNull() ?: return getRequestFailResult(
+            pathOrUrl,
+            IllegalArgumentException("序列化失败")
+        )
+        return sendText(text)
     }
 
     suspend fun sendBinary(bytes: ByteArray): JdcrHttpResult<Unit> {

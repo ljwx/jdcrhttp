@@ -2,6 +2,7 @@ package com.jdcr.jdcrhttp.client
 
 import com.jdcr.jdcrhttp.auth.JdcrHttpAuthUtils
 import com.jdcr.jdcrhttp.config.JdcrHttpConfig
+import com.jdcr.jdcrhttp.serialization.JdcrJsonCodec
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import com.jdcr.jdcrhttp.util.JdcrHttpUtils
 import io.ktor.client.HttpClient
@@ -30,7 +31,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.serialization.kotlinx.json.json
 import java.io.IOException
-import kotlinx.serialization.json.Json
 
 object JdcrHttpClientFactory {
 
@@ -108,12 +108,7 @@ object JdcrHttpClientFactory {
                     custom() // 自定义序列化（非 null 时忽略下方默认 Json）
                 } else {
                     json(
-                        Json {
-                            ignoreUnknownKeys = true // JSON 多出字段不报错
-                            isLenient = true // 宽松解析（引号、字面量等）
-                            encodeDefaults = false // 默认值为默认时可不序列化该字段
-                            prettyPrint = config.json.jsonPrettyPrint // 调试：格式化 JSON body
-                        },
+                        JdcrJsonCodec.API_JSON,
                         contentType = ContentType.Application.Json,
                     )
                 }

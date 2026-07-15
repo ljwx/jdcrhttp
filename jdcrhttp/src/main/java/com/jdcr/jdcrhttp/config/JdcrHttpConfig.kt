@@ -1,8 +1,8 @@
 package com.jdcr.jdcrhttp.config
 
+import com.jdcr.jdcrhttp.client.JdcrHttpLogLevel
 import io.ktor.client.engine.ProxyConfig
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.logging.LogLevel
 
 /**
  * CIO 引擎连接池与 endpoint 占位；可按环境与机型调优。
@@ -38,7 +38,7 @@ data class JdcrHttpConfigTimeout(
 
 data class JdcrHttpConfigLog(
     var enable: Boolean = true,
-    var level: LogLevel = LogLevel.INFO,
+    var level: JdcrHttpLogLevel = JdcrHttpLogLevel.INFO,
 )
 
 /**

@@ -32,6 +32,16 @@ import io.ktor.http.HttpMethod
 import io.ktor.serialization.kotlinx.json.json
 import java.io.IOException
 
+internal fun JdcrHttpLogLevel.toLevel(): LogLevel {
+    return when (this) {
+        JdcrHttpLogLevel.ALL -> LogLevel.ALL
+        JdcrHttpLogLevel.BODY -> LogLevel.BODY
+        JdcrHttpLogLevel.HEADERS -> LogLevel.HEADERS
+        JdcrHttpLogLevel.NONE -> LogLevel.NONE
+        else -> LogLevel.INFO
+    }
+}
+
 object JdcrHttpClientFactory {
 
     private var bearerProvider: BearerAuthProvider? = null
@@ -139,7 +149,7 @@ object JdcrHttpClientFactory {
 
             if (config.log.enable) {
                 install(Logging) {
-                    level = config.log.level // Ktor 日志级别（如 INFO、ALL、BODY）
+                    level = config.log.level.toLevel()
                     logger = object : Logger {
                         override fun log(message: String) {
                             val output = when (level) {

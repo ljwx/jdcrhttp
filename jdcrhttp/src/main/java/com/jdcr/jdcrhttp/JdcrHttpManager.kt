@@ -1,6 +1,8 @@
 package com.jdcr.jdcrhttp
 
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
+import com.jdcr.jdcrhttp.client.JdcrHttpLogLevel
+import com.jdcr.jdcrhttp.client.toLevel
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.JdcrSSEEvent
 import com.jdcr.jdcrhttp.response.JdcrSseConnection
@@ -9,6 +11,8 @@ import com.jdcr.jdcrhttp.response.getRequestFailResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.plugin
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
@@ -57,6 +61,12 @@ class JdcrHttpManager(
                 "请先初始化,JdcrHttpManager.initInstance()"
             }
         }
+    }
+
+    fun changeLogLevel(level: JdcrHttpLogLevel) {
+        val logging = client.plugin(Logging)
+        logging.level = level.toLevel()
+        JdcrHttpLog.i("修改日志等级为: $level")
     }
 
     @PublishedApi

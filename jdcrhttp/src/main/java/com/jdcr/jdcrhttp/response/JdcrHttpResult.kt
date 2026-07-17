@@ -1,11 +1,14 @@
 package com.jdcr.jdcrhttp.response
 
+import com.jdcr.jdcrhttp.exception.causeOrNull
+import com.jdcr.jdcrhttp.exception.toException
+
 sealed interface JdcrHttpResult<out T> {
 
     data class Success<T>(val data: T) : JdcrHttpResult<T>
 
     sealed interface Failure : JdcrHttpResult<Nothing> {
-        open val message: String
+        val message: String
 
         data class HttpError(val code: Int, override val message: String) : Failure
         data class BusinessError(val code: Int, override val message: String, val body: String?) :
@@ -13,7 +16,7 @@ sealed interface JdcrHttpResult<out T> {
 
         data class ConnectError(
             val throwable: Throwable,
-            override val message: String = throwable.message ?: ""
+            override val message: String = throwable.message.orEmpty()
         ) : Failure
 
         sealed interface LocalError : Failure {
@@ -21,27 +24,27 @@ sealed interface JdcrHttpResult<out T> {
 
             data class Network(
                 override val throwable: Throwable,
-                override val message: String = throwable.message ?: ""
+                override val message: String = throwable.message.orEmpty()
             ) : LocalError
 
             data class Timeout(
                 override val throwable: Throwable,
-                override val message: String = throwable.message ?: ""
+                override val message: String = throwable.message.orEmpty()
             ) : LocalError
 
             data class Serialization(
                 override val throwable: Throwable,
-                override val message: String = throwable.message ?: ""
+                override val message: String = throwable.message.orEmpty()
             ) : LocalError
 
             data class WsClosed(
                 override val throwable: Throwable,
-                override val message: String = throwable.message ?: ""
+                override val message: String = throwable.message.orEmpty()
             ) : LocalError
 
             data class Unknown(
                 override val throwable: Throwable,
-                override val message: String = throwable.message ?: ""
+                override val message: String = throwable.message.orEmpty()
             ) : LocalError
         }
     }
@@ -52,23 +55,39 @@ inline val JdcrHttpResult<*>.isSuccess: Boolean
     get() = this is JdcrHttpResult.Success
 
 fun <T> JdcrHttpResult<T>.getOrNull(): T? =
-    (this as? JdcrHttpResult.Success)?.data
+    when (this) {
+        is JdcrHttpResult.Success -> data
+        is JdcrHttpResult.Failure -> null
+    }
+
+fun <T> JdcrHttpResult<T>.failureOrNull():
+        JdcrHttpResult.Failure? =
+    this as? JdcrHttpResult.Failure
 
 fun <T> JdcrHttpResult<T>.exceptionOrNull(): Throwable? =
-    (this as? JdcrHttpResult.Failure.LocalError)?.throwable
-        ?: (this as? JdcrHttpResult.Failure.ConnectError)?.throwable
+    failureOrNull()?.causeOrNull()
 
 fun <T> JdcrHttpResult<T>.failureMessageOrNull(): String? =
-    (this as? JdcrHttpResult.Failure)?.message
+    failureOrNull()?.message
 
 fun <T> JdcrHttpResult<T>.getOrDefault(default: T): T =
-    (this as? JdcrHttpResult.Success)?.data ?: default
+    when (this) {
+        is JdcrHttpResult.Success -> data
+        is JdcrHttpResult.Failure -> default
+    }
 
-fun <T> JdcrHttpResult<T>.getOrElse(action: (JdcrHttpResult.Failure?) -> T): T =
-    (this as? JdcrHttpResult.Success)?.data ?: action(this as? JdcrHttpResult.Failure)
+inline fun <T> JdcrHttpResult<T>.getOrElse(
+    action: (JdcrHttpResult.Failure) -> T,
+): T = when (this) {
+    is JdcrHttpResult.Success -> data
+    is JdcrHttpResult.Failure -> action(this)
+}
 
 fun <T> JdcrHttpResult<T>.getOrThrow(): T =
-    (this as? JdcrHttpResult.Success)?.data ?: throw IllegalStateException("请求没有成功:$this")
+    when (this) {
+        is JdcrHttpResult.Success -> data
+        is JdcrHttpResult.Failure -> throw toException()
+    }
 
 inline fun <T, R> JdcrHttpResult<T>.map(transform: (T) -> R): JdcrHttpResult<R> =
     when (this) {

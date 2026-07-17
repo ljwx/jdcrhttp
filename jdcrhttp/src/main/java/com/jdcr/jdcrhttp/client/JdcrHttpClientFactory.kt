@@ -152,12 +152,8 @@ object JdcrHttpClientFactory {
                     level = config.log.level.toLevel()
                     logger = object : Logger {
                         override fun log(message: String) {
-                            val output = when (level) {
-                                LogLevel.INFO -> message
-                                else -> JdcrHttpUtils.sanitizeLogMessage(message, "****")
-                            }
-
-                            JdcrHttpLog.d(output) // 输出到项目日志
+                            val output = JdcrHttpUtils.sanitizeLogMessage(message, "****")
+                            JdcrHttpLog.i(output) // 输出到项目日志
                         }
                     }
                 }

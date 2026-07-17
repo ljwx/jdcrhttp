@@ -1,6 +1,7 @@
 package com.jdcr.jdcrwebsocket.client
 
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
+import com.jdcr.jdcrhttp.util.JdcrHttpUtils
 import com.jdcr.jdcrwebsocket.config.JdcrWebSocketConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
@@ -38,7 +39,12 @@ object JdcrWebSocketFactory {
                     level = LogLevel.INFO
                     logger = object : Logger {
                         override fun log(message: String) {
-                            JdcrHttpLog.d(message) // 输出到项目日志
+                            JdcrHttpLog.i(
+                                JdcrHttpUtils.sanitizeLogMessage(
+                                    message,
+                                    "****",
+                                )
+                            )
                         }
                     }
                 }

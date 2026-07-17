@@ -1,8 +1,5 @@
 package com.jdcr.jdcrhttp.util
 
-import kotlin.collections.get
-import kotlin.text.replace
-
 object JdcrHttpUtils {
 
     private val sensitiveHeaderRegex =

@@ -48,6 +48,9 @@ object HttpTest {
 
     fun sseGet() {
         coroutine.launch {
+            manager.post<String>("", {
+                jsonBody("")
+            })
             manager.getSSEConnection("https://postman-echo.com/server-events/5", {
                 header("Accept-Encoding", "identity")
             }).onSuccess {
@@ -64,7 +67,7 @@ object HttpTest {
 
     fun ssePost() {
         coroutine.launch {
-            manager.post<String>("", )
+            manager.post<String>("")
             val parser = JdcrSseLineParser()
             manager.postSSE("http://10.240.45.67:5001/sse", onLine = {
                 parser.accept(it)?.also { JdcrHttpLog.d("解析:$it") }
@@ -84,9 +87,7 @@ object HttpTest {
 //                retry {
 //                    maxRetries = 0 //post重试被排除了
 //                }
-                timeout {
-                    connectTimeoutMillis = 5000
-                }
+                timeout(connectTimeoutMillis = 5000)
             }).onSuccess {
                 it.events.collect {
                     it.onSuccess {

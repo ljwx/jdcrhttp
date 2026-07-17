@@ -3,6 +3,8 @@ package com.jdcr.jdcrhttp
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
 import com.jdcr.jdcrhttp.client.JdcrHttpLogLevel
 import com.jdcr.jdcrhttp.client.toLevel
+import com.jdcr.jdcrhttp.request.JdcrRequestBuilder
+import com.jdcr.jdcrhttp.request.applyJdcrRequest
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.JdcrSSEEvent
 import com.jdcr.jdcrhttp.response.JdcrSseConnection
@@ -126,23 +128,29 @@ class JdcrHttpManager(
 
     suspend inline fun getSSEConnection(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<JdcrSseConnection> =
         openSSEConnection(pathOrUrl) {
             client.prepareGet {
                 sseRequestConfig(pathOrUrl)
-                block()
+                val options = JdcrRequestBuilder()
+                    .apply(block)
+                    .build()
+                applyJdcrRequest(options)
             }
         }
 
     suspend inline fun postSSEConnection(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<JdcrSseConnection> =
         openSSEConnection(pathOrUrl) {
             client.preparePost {
                 sseRequestConfig(pathOrUrl)
-                block()
+                val options = JdcrRequestBuilder()
+                    .apply(block)
+                    .build()
+                applyJdcrRequest(options)
             }
         }
 

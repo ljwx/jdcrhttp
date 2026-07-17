@@ -2,6 +2,8 @@ package com.jdcr.jdcrhttp
 
 import com.jdcr.jdcrhttp.JdcrHttpManager.Companion.manager
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
+import com.jdcr.jdcrhttp.request.JdcrRequestBuilder
+import com.jdcr.jdcrhttp.request.applyJdcrRequest
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
@@ -18,28 +20,14 @@ import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.put
-import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
-import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
-import io.ktor.http.contentType
-import io.ktor.http.withCharset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-
-fun HttpRequestBuilder.setJsonBodyString(body: String) {
-    contentType(ContentType.Application.Json.withCharset(Charsets.UTF_8))
-    setBody(body)
-}
-
-inline fun <reified B : Any> HttpRequestBuilder.setJsonBodySerialized(body: B) {
-    contentType(ContentType.Application.Json.withCharset(Charsets.UTF_8))
-    setBody(body)
-}
 
 open class JdcrHttpCore(
     @PublishedApi internal open var client: HttpClient,
@@ -55,11 +43,14 @@ open class JdcrHttpCore(
 
     suspend inline fun <reified T> get(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
         client.get {
             url(resolveUrl(pathOrUrl))
-            block()
+            val options = JdcrRequestBuilder()
+                .apply(block)
+                .build()
+            applyJdcrRequest(options)
         }.body()
     }
 
@@ -91,13 +82,16 @@ open class JdcrHttpCore(
 
     suspend inline fun getSSE(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
         crossinline onLine: suspend (String) -> Unit,
         crossinline onClosed: suspend () -> Unit,
     ): JdcrHttpResult<Unit> = handleRequestResult(pathOrUrl) {
         client.prepareGet {
             sseRequestConfig(pathOrUrl)
-            block()
+            val options = JdcrRequestBuilder()
+                .apply(block)
+                .build()
+            applyJdcrRequest(options)
         }.execute { response ->
             sseResponseHandler(response, onLine, onClosed)
         }
@@ -105,23 +99,29 @@ open class JdcrHttpCore(
 
     suspend inline fun <reified T> post(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
         client.post {
             url(resolveUrl(pathOrUrl))
-            block()
+            val options = JdcrRequestBuilder()
+                .apply(block)
+                .build()
+            applyJdcrRequest(options)
         }.body()
     }
 
     suspend inline fun postSSE(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
         crossinline onLine: suspend (String) -> Unit,
         crossinline onClosed: suspend () -> Unit,
     ): JdcrHttpResult<Unit> = handleRequestResult(pathOrUrl) {
         client.preparePost {
             sseRequestConfig(pathOrUrl)
-            block()
+            val options = JdcrRequestBuilder()
+                .apply(block)
+                .build()
+            applyJdcrRequest(options)
         }.execute { response ->
             sseResponseHandler(response, onLine, onClosed)
         }
@@ -129,31 +129,40 @@ open class JdcrHttpCore(
 
     suspend inline fun <reified T> put(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
         client.put {
             url(resolveUrl(pathOrUrl))
-            block()
+            val options = JdcrRequestBuilder()
+                .apply(block)
+                .build()
+            applyJdcrRequest(options)
         }.body()
     }
 
     suspend inline fun <reified T> patch(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
         client.patch {
             url(resolveUrl(pathOrUrl))
-            block()
+            val options = JdcrRequestBuilder()
+                .apply(block)
+                .build()
+            applyJdcrRequest(options)
         }.body()
     }
 
     suspend inline fun <reified T> delete(
         pathOrUrl: String,
-        crossinline block: HttpRequestBuilder.() -> Unit = {},
+        crossinline block: JdcrRequestBuilder.() -> Unit = {},
     ): JdcrHttpResult<T> = handleRequestResult<T>(pathOrUrl) {
         client.delete {
             url(resolveUrl(pathOrUrl))
-            block()
+            val options = JdcrRequestBuilder()
+                .apply(block)
+                .build()
+            applyJdcrRequest(options)
         }.body()
     }
 

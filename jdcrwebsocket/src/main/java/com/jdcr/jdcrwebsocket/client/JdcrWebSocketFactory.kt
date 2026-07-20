@@ -8,6 +8,7 @@ import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.engine.cio.CIOEngineConfig
 import io.ktor.client.engine.cio.endpoint
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
@@ -28,6 +29,8 @@ object JdcrWebSocketFactory {
                 }
                 configureEngine() // 外层传入：在默认引擎参数之后再改 CIOEngineConfig
             }
+
+            install(HttpTimeout)
 
             install(WebSockets) {
                 pingInterval = config.ping.pingInterval // 用上配置，不再硬编码

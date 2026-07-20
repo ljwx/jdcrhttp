@@ -46,6 +46,23 @@ class JdcrWsConnection(
         }
     }
 
+    fun configureHeartbeat(
+        pingIntervalMillis: Long,
+        pongTimeoutMillis: Long =
+            if (pingIntervalMillis > 0) pingIntervalMillis * 2 else 15_000L
+    ) {
+        require(pingIntervalMillis == -1L || pingIntervalMillis > 0L) {
+            "pingIntervalMillis必须为-1或正数"
+        }
+        if (pingIntervalMillis > 0) {
+            require(pongTimeoutMillis > 0L) {
+                "pongTimeoutMillis必须为正数"
+            }
+            session.timeoutMillis = pongTimeoutMillis
+        }
+        session.pingIntervalMillis = pingIntervalMillis
+    }
+
     suspend fun close(reason: String = "手动关闭", timeout: Long = 3_000) {
         runCatching {
             session.close(CloseReason(CloseReason.Codes.NORMAL, reason))

@@ -7,12 +7,14 @@ import io.ktor.client.call.body
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.RedirectResponseException
 import io.ktor.client.plugins.ServerResponseException
 import io.ktor.client.plugins.websocket.WebSocketException
 import io.ktor.network.sockets.SocketTimeoutException
 import io.ktor.util.network.UnresolvedAddressException
 import io.ktor.utils.io.errors.IOException
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.serialization.SerializationException
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -38,6 +40,9 @@ suspend inline fun <reified T> getRequestFailResult(
     e: Exception
 ): JdcrHttpResult<T> {
     return when (e) {
+
+        is CancellationException -> throw e
+
         is ClientRequestException -> {
             // 4xx 错误（400, 401, 403, 404 等）
             // 前提：expectSuccess = true
@@ -92,14 +97,22 @@ suspend inline fun <reified T> getRequestFailResult(
             JdcrHttpResult.Failure.LocalError.Serialization(e)
         }
 
+        is RedirectResponseException -> {
+            val msg = runCatching { e.response.body<String>() }.getOrElse { e.message }
+            val status = e.response.status
+            JdcrHttpLog.w("重定向响应异常:${pathOrUrl.safePath()},$status,$msg", e)
+            JdcrHttpResult.Failure.HttpError(e.response.status.value, msg)
+        }
+
         is NoTransformationFoundException -> {
             // 可能是wss使用了https
             JdcrHttpLog.w("可能是http协议错了:${pathOrUrl.safePath()}", e)
             JdcrHttpResult.Failure.ConnectError(e)
         }
 
+        is ClosedSendChannelException,
         is ClosedReceiveChannelException -> {
-            JdcrHttpLog.w("WebSocket连接已正常断开:${pathOrUrl.safePath()}", e) //针对ws
+            JdcrHttpLog.w("WebSocket通道已关闭:${pathOrUrl.safePath()}", e) //针对ws
             JdcrHttpResult.Failure.LocalError.WsClosed(e)
         }
 

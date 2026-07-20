@@ -29,6 +29,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -191,26 +192,30 @@ class JdcrWebSocketManager(
                             events.send(JdcrHttpResult.Success(WsEvent.Binary(frame.readBytes())))
                         }
 
-                        is Frame.Close -> {
-                            val reason = frame.readReason()?.message ?: "未知原因"
-                            JdcrHttpLog.w("收到关闭帧:$reason")
-                            events.send(JdcrHttpResult.Success(WsEvent.Closing(reason)))
-                            break
-                        }
-
-                        is Frame.Ping -> JdcrHttpLog.i("🏓 收到 Ping")
-                        is Frame.Pong -> JdcrHttpLog.i("🏓 收到 Pong")
+                        else -> Unit
                     }
                 }
 
-                val closeReason = session.closeReason.await()?.message
-                events.send(JdcrHttpResult.Success(WsEvent.Closed(closeReason)))
-                events.close()
+                val closeReason = session.closeReason.await()
+                val closedEvent = WsEvent.Closed(
+                    reason = closeReason?.message,
+                    code = closeReason?.code,
+                )
+                if (closedEvent.isNormal) {
+                    JdcrHttpLog.i(
+                        "WebSocket正常关闭: code=${closedEvent.code}, reason=${closedEvent.reason}"
+                    )
+                } else {
+                    JdcrHttpLog.w(
+                        "WebSocket异常关闭: code=${closedEvent.code}, reason=${closedEvent.reason}"
+                    )
+                }
+                events.send(JdcrHttpResult.Success(closedEvent))
             } catch (e: CancellationException) {
                 events.close(e)
                 return@launch
             } catch (e: Exception) {
-                events.trySend(getRequestFailResult(pathOrUrl, e))
+                events.close(e)
             } finally {
                 events.close()
                 runCatching { session.close() }
@@ -223,6 +228,16 @@ class JdcrWebSocketManager(
         connection = JdcrWsConnection(
             pathOrUrl = pathOrUrl,
             events = events.receiveAsFlow()
+                .catch { cause ->
+                    if (cause is CancellationException) {
+                        throw cause
+                    }
+                    // readJob 只会用 Exception 关闭事件 Channel。
+                    // Error 等严重异常仍然直接向上传递。
+                    val exception = cause as? Exception ?: throw cause
+
+                    emit(getRequestFailResult(pathOrUrl = pathOrUrl, e = exception))
+                }
                 .onCompletion {
                     readJob.cancel()
                 },
@@ -292,7 +307,9 @@ class JdcrWebSocketManager(
         }
         wsScope.cancel()
         client.close()
-        manager = null
+        if (manager === this) {
+            manager = null
+        }
     }
 
 }

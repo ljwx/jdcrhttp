@@ -7,7 +7,10 @@ import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.max
@@ -24,6 +27,9 @@ class JdcrWsConnection(
         return try {
             session.send(Frame.Text(text))
             JdcrHttpResult.Success(Unit)
+        } catch (e: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            JdcrHttpResult.Failure.LocalError.WsClosed(e)
         } catch (e: Exception) {
             getRequestFailResult(pathOrUrl, e)
         }
@@ -41,6 +47,8 @@ class JdcrWsConnection(
         return try {
             session.send(Frame.Binary(true, bytes))
             JdcrHttpResult.Success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             getRequestFailResult(pathOrUrl, e)
         }

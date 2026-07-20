@@ -10,8 +10,10 @@ import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.engine.cio.CIOEngineConfig
 import io.ktor.client.engine.cio.endpoint
+import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.plugins.HttpRedirect
 import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
@@ -29,6 +31,7 @@ import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.network.sockets.SocketTimeoutException
 import io.ktor.serialization.kotlinx.json.json
 import java.io.IOException
 
@@ -56,7 +59,7 @@ object JdcrHttpClientFactory {
         configureClient: HttpClientConfig<*>.() -> Unit = {}, // Ktor 客户端追加配置（插件、defaultRequest、校验器等）
     ): HttpClient {
         return HttpClient(CIO) {
-            expectSuccess = config.behavior.expectSuccess // true：非 2xx 直接抛 ResponseException
+            expectSuccess = true // true：非 2xx 直接抛 ResponseException,不然404会走到成功response
 
             engine {
                 config.proxy?.let { proxy = it } // HTTP/SOCKS 代理；null 表示直连
@@ -75,6 +78,7 @@ object JdcrHttpClientFactory {
                 configureEngine() // 外层传入：在默认引擎参数之后再改 CIOEngineConfig
             }
 
+            followRedirects = config.redirect.enabled
             if (config.redirect.enabled) {
                 install(HttpRedirect) {
                     allowHttpsDowngrade =
@@ -86,21 +90,20 @@ object JdcrHttpClientFactory {
             if (config.retry.enabled) {
                 install(HttpRequestRetry) {
                     maxRetries = config.retry.maxRetries // 插件层最大重试次数（与引擎建连重试无关）
+                    fun canRetryMethod(method: HttpMethod): Boolean {
+                        return when (method) {
+                            HttpMethod.Post, HttpMethod.Patch -> return false
+                            else -> true
+                        }
+                    }
                     retryIf { request, response ->
-                        config.retry.retryOn5xx && response.status.value in 500..599 && // 5xx 时是否重试&&
-                                (!config.retry.exceptPost || request.method != HttpMethod.Post) // 不是 POST 时才重试
+                        val codeRange = response.status.value in 500..599
+                        config.retry.retryOn5xx && codeRange && canRetryMethod(request.method)
                     }
                     retryOnExceptionIf { request, cause ->
-                        config.retry.retryOnNetworkError && cause is IOException && // IOException 时是否重试
-                                (!config.retry.exceptPost || request.method != HttpMethod.Post) // 不是 POST 时才重试
-//                        config.retry.retryOnNetworkError &&
-//                                (!config.retry.exceptPost || request.method != HttpMethod.Post) &&
-//                                (
-//                                        cause is IOException ||
-//                                                cause is ConnectTimeoutException ||
-//                                                cause is SocketTimeoutException ||
-//                                                cause is HttpRequestTimeoutException
-//                                        )
+                        val causeRange =
+                            cause is IOException || cause is ConnectTimeoutException || cause is SocketTimeoutException || cause is HttpRequestTimeoutException
+                        config.retry.retryOnNetworkError && causeRange && canRetryMethod(request.method) // IOException 时是否重试
                     }
                     exponentialDelay() // 重试间隔：指数退避
                 }
@@ -147,14 +150,12 @@ object JdcrHttpClientFactory {
                 }
             }
 
-            if (config.log.enable) {
-                install(Logging) {
-                    level = config.log.level.toLevel()
-                    logger = object : Logger {
-                        override fun log(message: String) {
-                            val output = JdcrHttpUtils.sanitizeLogMessage(message, "****")
-                            JdcrHttpLog.i(output) // 输出到项目日志
-                        }
+            install(Logging) {
+                level = config.log.level.toLevel()
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        val output = JdcrHttpUtils.sanitizeLogMessage(message, "****")
+                        JdcrHttpLog.i(output) // 输出到项目日志
                     }
                 }
             }

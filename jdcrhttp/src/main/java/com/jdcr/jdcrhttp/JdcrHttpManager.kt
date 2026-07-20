@@ -92,11 +92,9 @@ class JdcrHttpManager(
                     }
                     events.close()
                 } catch (e: CancellationException) {
-                    if (!connected.isCompleted) {
-                        connected.completeExceptionally(e)
-                    }
+                    connected.completeExceptionally(e)
                     events.close(e)
-                    return@launch
+                    throw e
                 } catch (e: Exception) {
                     if (!connected.isCompleted) {
                         connected.completeExceptionally(e)
@@ -105,6 +103,19 @@ class JdcrHttpManager(
                     }
                     events.trySend(getRequestFailResult(pathOrUrl, e))
                     events.close()
+                }
+            }
+            readJob.invokeOnCompletion { cause ->
+                if (!connected.isCompleted) {
+                    val connectionFailure = cause ?: IllegalStateException(
+                        "SSE readJob在连接建立前结束"
+                    )
+                    connected.completeExceptionally(connectionFailure)
+                }
+
+                // launch 在执行代码块之前就被取消时，原来的 catch/finally 不一定执行
+                if (cause != null) {
+                    events.close(cause)
                 }
             }
 

@@ -1,6 +1,7 @@
 package com.jdcr.jdcrwebsocket.data
 
 import com.jdcr.jdcrhttp.serialization.JdcrJsonCodec
+import io.ktor.websocket.CloseReason
 
 sealed interface WsMessage {
     data class Text(val data: String) : WsMessage
@@ -14,6 +15,12 @@ sealed interface WsEvent {
     }
 
     data class Binary(val data: ByteArray) : WsEvent
-    data class Closing(val reason: String?) : WsEvent
-    data class Closed(val reason: String?) : WsEvent
+    data class Closed(val reason: String?, val code: Short? = null) : WsEvent {
+
+        /**
+         * true 表示 RFC 6455 正常关闭码 1000。
+         */
+        val isNormal: Boolean
+            get() = code == CloseReason.Codes.NORMAL.code
+    }
 }

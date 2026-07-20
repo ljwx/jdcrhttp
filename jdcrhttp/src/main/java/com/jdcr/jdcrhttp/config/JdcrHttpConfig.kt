@@ -37,7 +37,6 @@ data class JdcrHttpConfigTimeout(
 }
 
 data class JdcrHttpConfigLog(
-    var enable: Boolean = true,
     var level: JdcrHttpLogLevel = JdcrHttpLogLevel.INFO,
 )
 
@@ -51,7 +50,6 @@ data class JdcrHttpConfigRetry(
     var retryOn5xx: Boolean = false,
     /** 是否在 IOException 等传输异常时重试（占位，后续可按异常类型收紧） */
     var retryOnNetworkError: Boolean = true,
-    var exceptPost: Boolean = true,
 ) {
     init {
         require(maxRetries >= 0) { "maxRetries 不能小于 0" }
@@ -92,15 +90,7 @@ data class JdcrHttpConfigCompression(
     val enabled: Boolean = false,
 )
 
-/**
- * `expectSuccess = true` 时非 2xx 会直接抛 [ResponseException]（可按团队规范选 true/false）。
- */
-data class JdcrHttpConfigBehavior(
-    val expectSuccess: Boolean = true,
-)
-
 data class JdcrHttpConfigContentJson(
-    var jsonPrettyPrint: Boolean = false, //调试可读,json缩进
     val configureContent: (ContentNegotiation.Config.() -> Unit)? = null,
 )
 
@@ -121,7 +111,6 @@ data class JdcrHttpConfig(
     val redirect: JdcrHttpConfigRedirect = JdcrHttpConfigRedirect(),
     val cookies: JdcrHttpConfigCookies = JdcrHttpConfigCookies(),
     val compression: JdcrHttpConfigCompression = JdcrHttpConfigCompression(),
-    val behavior: JdcrHttpConfigBehavior = JdcrHttpConfigBehavior(),
     /** 占位：无需代理时为 null；示例：`ProxyBuilder.http("127.0.0.1", 8888)` */
     val proxy: ProxyConfig? = null,
     val json: JdcrHttpConfigContentJson = JdcrHttpConfigContentJson()

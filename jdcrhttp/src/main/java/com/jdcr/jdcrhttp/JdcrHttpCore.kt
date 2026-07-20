@@ -74,7 +74,7 @@ open class JdcrHttpCore(
     ) {
         val channel = response.bodyAsChannel()
         while (!channel.isClosedForRead) {
-            val line = channel.readUTF8Line(Int.MAX_VALUE) ?: break
+            val line = channel.readUTF8Line(Int.MAX_VALUE / 20) ?: break
             onLine(line)
         }
         onClosed()
@@ -215,7 +215,9 @@ open class JdcrHttpCore(
         JdcrHttpLog.w("触发http,destroyClient")
         sseScope.cancel()
         client.close()
-        manager = null
+        if (manager === this) {
+            manager = null
+        }
     }
 
 }

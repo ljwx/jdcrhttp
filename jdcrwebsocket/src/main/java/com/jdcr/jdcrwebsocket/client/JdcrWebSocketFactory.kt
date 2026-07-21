@@ -24,7 +24,10 @@ object JdcrWebSocketFactory {
     ): HttpClient {
         return HttpClient(CIO) {
             engine {
-                config.proxy?.let { proxy = it } // HTTP/SOCKS 代理；null 表示直连
+                config.proxy?.let {
+                    proxy = it
+                    JdcrHttpLog.i("Websocket CIO proxy=${proxy}")
+                } // HTTP/SOCKS 代理；null 表示直连
                 if (config.trustAllCertificates) {
                     https {
                         trustManager = JdcrTrustAllManager

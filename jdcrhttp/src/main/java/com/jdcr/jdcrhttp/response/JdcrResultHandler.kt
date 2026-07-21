@@ -10,7 +10,9 @@ import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.RedirectResponseException
 import io.ktor.client.plugins.ServerResponseException
 import io.ktor.client.plugins.websocket.WebSocketException
+import io.ktor.client.statement.HttpResponse
 import io.ktor.network.sockets.SocketTimeoutException
+import io.ktor.serialization.ContentConvertException
 import io.ktor.util.network.UnresolvedAddressException
 import io.ktor.utils.io.errors.IOException
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -35,6 +37,20 @@ suspend inline fun <reified T> handleRequestResult(
     }
 }
 
+@PublishedApi
+internal suspend fun readErrorBodyOrFallback(
+    response: HttpResponse,
+    fallback: String,
+): String {
+    return try {
+        response.body<String>()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        fallback
+    }
+}
+
 suspend inline fun <reified T> getRequestFailResult(
     pathOrUrl: String,
     e: Exception
@@ -46,7 +62,7 @@ suspend inline fun <reified T> getRequestFailResult(
         is ClientRequestException -> {
             // 4xx 错误（400, 401, 403, 404 等）
             // 前提：expectSuccess = true
-            val msg = runCatching { e.response.body<String>() }.getOrElse { e.message }
+            val msg = readErrorBodyOrFallback(response = e.response, fallback = e.message)
             val status = e.response.status
             JdcrHttpLog.w("客户端错误:${pathOrUrl.safePath()},$status,$msg", e)
             JdcrHttpResult.Failure.HttpError(e.response.status.value, msg)
@@ -55,7 +71,7 @@ suspend inline fun <reified T> getRequestFailResult(
         is ServerResponseException -> {
             // 5xx 错误（500, 502, 503 等）
             // 前提：expectSuccess = true
-            val msg = runCatching { e.response.body<String>() }.getOrElse { e.message }
+            val msg = readErrorBodyOrFallback(response = e.response, fallback = e.message)
             val status = e.response.status
             JdcrHttpLog.w("服务端错误:${pathOrUrl.safePath()},$status,$msg", e)
             JdcrHttpResult.Failure.HttpError(e.response.status.value, msg)
@@ -91,14 +107,14 @@ suspend inline fun <reified T> getRequestFailResult(
             JdcrHttpResult.Failure.LocalError.Network(e)
         }
 
-        is SerializationException -> {
+        is SerializationException, is ContentConvertException -> {
             // JSON 解析失败
             JdcrHttpLog.w("Json解析失败:${pathOrUrl.safePath()}", e)
             JdcrHttpResult.Failure.LocalError.Serialization(e)
         }
 
         is RedirectResponseException -> {
-            val msg = runCatching { e.response.body<String>() }.getOrElse { e.message }
+            val msg = readErrorBodyOrFallback(response = e.response, fallback = e.message)
             val status = e.response.status
             JdcrHttpLog.w("重定向响应异常:${pathOrUrl.safePath()},$status,$msg", e)
             JdcrHttpResult.Failure.HttpError(e.response.status.value, msg)

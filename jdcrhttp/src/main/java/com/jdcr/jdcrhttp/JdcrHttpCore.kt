@@ -6,6 +6,7 @@ import com.jdcr.jdcrhttp.request.JdcrRequestBuilder
 import com.jdcr.jdcrhttp.request.applyJdcrRequest
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
+import com.jdcr.jdcrhttp.response.readSseLine
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -74,7 +75,7 @@ open class JdcrHttpCore(
     ) {
         val channel = response.bodyAsChannel()
         while (!channel.isClosedForRead) {
-            val line = channel.readUTF8Line(Int.MAX_VALUE / 20) ?: break
+            val line = channel.readSseLine() ?: break
             onLine(line)
         }
         onClosed()

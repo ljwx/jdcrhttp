@@ -12,6 +12,10 @@ sealed interface WsEvent {
     object Open : WsEvent
     data class Text(val data: String) : WsEvent {
         inline fun <reified T> toObject(): Result<T> = JdcrJsonCodec.fromJson<T>(data)
+
+        fun getSimpleInfo(startIndex: Int = 0, endIndex: Int = 250): String =
+            data.substring(startIndex.coerceAtLeast(0), endIndex.coerceAtMost(data.length))
+
     }
 
     data class Binary(val data: ByteArray) : WsEvent

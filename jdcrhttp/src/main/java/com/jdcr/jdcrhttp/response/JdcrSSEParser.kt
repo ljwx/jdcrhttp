@@ -2,21 +2,48 @@ package com.jdcr.jdcrhttp.response
 
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.charsets.TooLongLineException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.serialization.SerializationException
 import kotlin.coroutines.cancellation.CancellationException
+
+const val DEFAULT_SSE_MAX_LINE_CHARS = 64 * 1024
+const val DEFAULT_SSE_MAX_EVENT_CHARS = 1024 * 1024
+
+class JdcrSseTooLargeException(
+    message: String,
+    cause: Throwable? = null,
+) : SerializationException(message, cause)
+
+@PublishedApi
+internal suspend fun ByteReadChannel.readSseLine(
+    maxLineChars: Int = DEFAULT_SSE_MAX_LINE_CHARS,
+): String? {
+    require(maxLineChars > 0)
+
+    return try {
+        readUTF8Line(maxLineChars)
+    } catch (e: TooLongLineException) {
+        throw JdcrSseTooLargeException("SSE 单行超过限制：$maxLineChars chars", e)
+    }
+}
 
 /**
  * 按 W3C SSE 规范解析:空行分隔事件,id 字段粘性保留,以 ":" 开头为注释行。
  */
-class JdcrSseLineParser {
+class JdcrSseLineParser(private val maxEventChars: Int = DEFAULT_SSE_MAX_EVENT_CHARS) {
     private var id: String? = null
     private var event: String? = null
     private var retry: Long? = null
     private val data = StringBuilder()
+
+    init {
+        require(maxEventChars > 0)
+    }
 
     fun accept(line: String): JdcrSSEEvent? {
         if (line.isEmpty()) {
@@ -46,7 +73,19 @@ class JdcrSseLineParser {
         when (field) {
             "id" -> id = value
             "event" -> event = value
-            "data" -> data.append(value).append('\n')
+            "data" -> {
+                val nextLength =
+                    data.length.toLong() + value.length.toLong() + 1L
+
+                if (nextLength > maxEventChars.toLong()) {
+                    throw JdcrSseTooLargeException(
+                        "SSE 单事件超过限制：$maxEventChars chars"
+                    )
+                }
+
+                data.append(value).append('\n')
+            }
+
             "retry" -> retry = value.toLongOrNull()
         }
 
@@ -79,7 +118,7 @@ internal fun ByteReadChannel.asSseEventsResult(
 ): Flow<JdcrHttpResult<JdcrSSEEvent>> = flow<JdcrHttpResult<JdcrSSEEvent>> {
     val parser = JdcrSseLineParser()
     while (!isClosedForRead) {
-        val line = readUTF8Line(Int.MAX_VALUE / 20) ?: break
+        val line = readSseLine() ?: break
         JdcrHttpLog.v("SSE读到行: [${if (line.length > 150) line.substring(0, 140) else line}]")
         parser.accept(line)?.also { emit(JdcrHttpResult.Success(it)) }
     }

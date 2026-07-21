@@ -29,6 +29,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
@@ -214,13 +216,13 @@ class JdcrWebSocketManager(
                 }
                 events.send(JdcrHttpResult.Success(closedEvent))
             } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
                 events.close(e)
-                return@launch
             } catch (e: Exception) {
                 events.close(e)
             } finally {
                 events.close()
-                runCatching { session.close() }
+                session.cancel()
                 connection?.let {
                     removeConnection(url, it)
                 }
@@ -231,14 +233,18 @@ class JdcrWebSocketManager(
             pathOrUrl = pathOrUrl,
             events = events.receiveAsFlow()
                 .catch { cause ->
-                    if (cause is CancellationException) {
-                        throw cause
-                    }
-                    // readJob 只会用 Exception 关闭事件 Channel。
-                    // Error 等严重异常仍然直接向上传递。
-                    val exception = cause as? Exception ?: throw cause
+                    when (cause) {
+                        is CancellationException -> {
+                            currentCoroutineContext().ensureActive()
+                            emit(JdcrHttpResult.Failure.LocalError.WsClosed(cause))
+                        }
 
-                    emit(getRequestFailResult(pathOrUrl = pathOrUrl, e = exception))
+                        is Exception -> {
+                            emit(getRequestFailResult(pathOrUrl = pathOrUrl, e = cause))
+                        }
+
+                        else -> throw cause
+                    }
                 }
                 .onCompletion {
                     readJob.cancel()
@@ -257,12 +263,10 @@ class JdcrWebSocketManager(
     suspend fun disconnect(pathOrUrl: String) {
         val url = resolveUrl(pathOrUrl)
         val snapshot = synchronized(connectionLock) {
-            connections.remove(url)?.toList().orEmpty()
+            connections[url]?.toList().orEmpty()
         }
         snapshot.forEach { connection ->
-            runCatching {
-                connection.close("手动断开连接")
-            }
+            connection.close("手动断开连接")
         }
         //@Deprecated
         sessions.remove(url)
@@ -281,14 +285,9 @@ class JdcrWebSocketManager(
     suspend fun disconnectAllAwait() {
         val snapshot = synchronized(connectionLock) {
             connections.values.flatMap { it.toList() }
-                .also {
-                    connections.clear()
-                }
         }
         snapshot.forEach { connection ->
-            runCatching {
-                connection.close("手动断开全部连接")
-            }
+            connection.close("手动断开全部连接")
         }
         //@Deprecated
         sessions.values.forEach { set -> set.forEach { runCatching { it.cancel() } } }

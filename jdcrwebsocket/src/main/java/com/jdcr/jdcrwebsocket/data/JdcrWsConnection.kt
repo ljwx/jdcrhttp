@@ -9,9 +9,12 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.max
 
@@ -48,7 +51,8 @@ class JdcrWsConnection(
             session.send(Frame.Binary(true, bytes))
             JdcrHttpResult.Success(Unit)
         } catch (e: CancellationException) {
-            throw e
+            currentCoroutineContext().ensureActive()
+            JdcrHttpResult.Failure.LocalError.WsClosed(e)
         } catch (e: Exception) {
             getRequestFailResult(pathOrUrl, e)
         }
@@ -72,15 +76,26 @@ class JdcrWsConnection(
     }
 
     suspend fun close(reason: String = "手动关闭", timeout: Long = 3_000) {
-        runCatching {
-            session.close(CloseReason(CloseReason.Codes.NORMAL, reason))
-        }
-        onClose(this)
-        withTimeoutOrNull(max(1000, timeout)) {
-            readJob.join()
-        }
-        if (readJob.isActive) {
-            readJob.cancel()
+        try {
+            withTimeoutOrNull(max(1_000L, timeout)) {
+                session.close(
+                    CloseReason(
+                        CloseReason.Codes.NORMAL,
+                        reason,
+                    )
+                )
+
+                readJob.join()
+            }
+        } finally {
+            withContext(NonCancellable) {
+                // 先取消读取，避免主动关闭被误识别成上游连接异常
+                readJob.cancel()
+                session.cancel()
+
+                // 无论正常、超时还是调用方取消，都从 Manager 中移除
+                onClose(this@JdcrWsConnection)
+            }
         }
     }
 

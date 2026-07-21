@@ -1,5 +1,7 @@
 package com.jdcr.jdcrwebsocket.config
 
+import io.ktor.client.engine.ProxyConfig
+
 data class JdcrWSPingConfig(
     val pingInterval: Long = 5000L,
     /** 注意：Ktor 2.x 客户端 WebSockets 插件没有内置 pongTimeout，
@@ -12,4 +14,6 @@ data class JdcrWebSocketConfig(
     val connectTimeoutMs: Long = 15_000L,
     val maxFrameSize: Long = 6L * 1024 * 1024,
     val logEnable: Boolean = true,
+    val proxy: ProxyConfig? = null,
+    val trustAllCertificates: Boolean = false,
 )

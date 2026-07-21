@@ -6,6 +6,7 @@ import com.jdcr.jdcrhttp.response.getRequestFailResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import com.jdcr.jdcrwebsocket.client.JdcrWebSocketFactory
+import com.jdcr.jdcrwebsocket.config.JdcrWebSocketConfig
 import com.jdcr.jdcrwebsocket.data.JdcrWsConnection
 import com.jdcr.jdcrwebsocket.data.WsEvent
 import com.jdcr.jdcrwebsocket.data.WsMessage
@@ -58,7 +59,8 @@ class JdcrWebSocketManager(
         private var manager: JdcrWebSocketManager? = null
         fun initInstance(
             baseUrl: String,
-            client: HttpClient? = null
+            client: HttpClient? = null,
+            config: JdcrWebSocketConfig = JdcrWebSocketConfig(),
         ): JdcrWebSocketManager {
             check(manager == null) {
                 "JdcrWebSocketManager已初始化, 如需切换请先 destroyClient"
@@ -68,7 +70,7 @@ class JdcrWebSocketManager(
             }
             return manager ?: synchronized(this) {
                 manager ?: JdcrWebSocketManager(
-                    baseUrl, client ?: JdcrWebSocketFactory.getDefaultWebSocket()
+                    baseUrl, client ?: JdcrWebSocketFactory.getDefaultWebSocket(config)
                 ).also {
                     JdcrHttpLog.i("JdcrWebSocketManager初始化成功")
                     manager = it

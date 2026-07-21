@@ -111,7 +111,7 @@ data class JdcrHttpConfig(
     val redirect: JdcrHttpConfigRedirect = JdcrHttpConfigRedirect(),
     val cookies: JdcrHttpConfigCookies = JdcrHttpConfigCookies(),
     val compression: JdcrHttpConfigCompression = JdcrHttpConfigCompression(),
-    /** 占位：无需代理时为 null；示例：`ProxyBuilder.http("127.0.0.1", 8888)` */
     val proxy: ProxyConfig? = null,
+    val trustAllCertificates: Boolean = false,
     val json: JdcrHttpConfigContentJson = JdcrHttpConfigContentJson()
 )

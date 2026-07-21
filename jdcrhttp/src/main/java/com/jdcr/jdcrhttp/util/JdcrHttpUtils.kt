@@ -1,5 +1,12 @@
 package com.jdcr.jdcrhttp.util
 
+import android.content.Context
+import android.net.ConnectivityManager
+import io.ktor.client.engine.ProxyBuilder
+import io.ktor.client.engine.ProxyConfig
+import io.ktor.http.URLBuilder
+import io.ktor.http.URLProtocol
+
 object JdcrHttpUtils {
 
     private val sensitiveHeaderRegex =
@@ -23,6 +30,23 @@ object JdcrHttpUtils {
         }
         sanitized = bearerTokenRegex.replace(sanitized, "Bearer $redactedText")
         return sanitized
+    }
+
+    fun getSystemProxy(context: Context): ProxyConfig? {
+        val manager = context.getSystemService(ConnectivityManager::class.java)
+        manager.defaultProxy?.let { proxyInfo ->
+            val hostProxy = proxyInfo.host
+            val portProxy = proxyInfo.port
+            if (!hostProxy.isNullOrBlank() && portProxy > 0) {
+                val proxyUrl = URLBuilder().apply {
+                    protocol = URLProtocol.HTTP
+                    host = proxyInfo.host
+                    port = proxyInfo.port
+                }.build()
+                return ProxyBuilder.http(proxyUrl)
+            }
+        }
+        return null
     }
 
 }

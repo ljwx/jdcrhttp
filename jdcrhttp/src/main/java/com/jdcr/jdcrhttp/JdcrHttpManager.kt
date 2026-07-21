@@ -3,6 +3,7 @@ package com.jdcr.jdcrhttp
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
 import com.jdcr.jdcrhttp.client.JdcrHttpLogLevel
 import com.jdcr.jdcrhttp.client.toLevel
+import com.jdcr.jdcrhttp.config.JdcrHttpConfig
 import com.jdcr.jdcrhttp.request.JdcrRequestBuilder
 import com.jdcr.jdcrhttp.request.applyJdcrRequest
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
@@ -38,14 +39,15 @@ class JdcrHttpManager(
         internal var manager: JdcrHttpManager? = null
         fun initInstance(
             baseUrl: String,
-            client: HttpClient? = null
+            client: HttpClient? = null,
+            config: JdcrHttpConfig = JdcrHttpConfig()
         ): JdcrHttpManager {
             check(manager == null) {
                 "JdcrHttpManager已初始化, 如需切换请先 destroyClient"
             }
             return manager ?: synchronized(this) {
                 manager ?: JdcrHttpManager(
-                    client ?: JdcrHttpClientFactory.getDefaultHttp(),
+                    client ?: JdcrHttpClientFactory.getDefaultHttp(config),
                     baseUrl
                 ).also {
                     JdcrHttpLog.i("JdcrHttpManager初始化成功")

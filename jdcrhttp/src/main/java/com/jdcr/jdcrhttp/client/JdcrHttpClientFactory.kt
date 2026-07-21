@@ -2,6 +2,7 @@ package com.jdcr.jdcrhttp.client
 
 import com.jdcr.jdcrhttp.auth.JdcrHttpAuthUtils
 import com.jdcr.jdcrhttp.config.JdcrHttpConfig
+import com.jdcr.jdcrhttp.proxy.JdcrTrustAllManager
 import com.jdcr.jdcrhttp.serialization.JdcrJsonCodec
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import com.jdcr.jdcrhttp.util.JdcrHttpUtils
@@ -63,6 +64,11 @@ object JdcrHttpClientFactory {
 
             engine {
                 config.proxy?.let { proxy = it } // HTTP/SOCKS 代理；null 表示直连
+                if (config.trustAllCertificates) {
+                    https {
+                        trustManager = JdcrTrustAllManager
+                    }
+                }
                 maxConnectionsCount = config.engine.maxConnectionsCount // CIO 全局最大并发连接数（整客户端）
                 requestTimeout = 0 // 引擎不限整请求时长，墙钟超时交给 HttpTimeout 插件，SSE 才能长连
                 endpoint {

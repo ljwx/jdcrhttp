@@ -1,5 +1,6 @@
 package com.jdcr.jdcrwebsocket.client
 
+import com.jdcr.jdcrhttp.proxy.JdcrTrustAllManager
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import com.jdcr.jdcrhttp.util.JdcrHttpUtils
 import com.jdcr.jdcrwebsocket.config.JdcrWebSocketConfig
@@ -23,6 +24,12 @@ object JdcrWebSocketFactory {
     ): HttpClient {
         return HttpClient(CIO) {
             engine {
+                config.proxy?.let { proxy = it } // HTTP/SOCKS 代理；null 表示直连
+                if (config.trustAllCertificates) {
+                    https {
+                        trustManager = JdcrTrustAllManager
+                    }
+                }
                 requestTimeout = 0 // 长连接：不限制整请求时长，避免 WS 被超时掐断
                 endpoint {
                     connectTimeout = config.connectTimeoutMs

@@ -2,6 +2,9 @@ package com.jdcr.jdcrhttp
 
 import com.jdcr.jdcrhttp.JdcrHttpManager.Companion.manager
 import com.jdcr.jdcrhttp.client.JdcrHttpClientFactory
+import com.jdcr.jdcrhttp.download.JdcrDownloadRequest
+import com.jdcr.jdcrhttp.download.JdcrDownloadState
+import com.jdcr.jdcrhttp.download.JdcrFileDownloader
 import com.jdcr.jdcrhttp.request.JdcrRequestBuilder
 import com.jdcr.jdcrhttp.request.applyJdcrRequest
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
@@ -28,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 
 open class JdcrHttpCore(
     @PublishedApi internal open var client: HttpClient,
@@ -37,8 +41,24 @@ open class JdcrHttpCore(
     @PublishedApi
     internal val sseScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private val fileDownloader = JdcrFileDownloader(
+        clientProvider = { client },
+        resolveUrl = ::resolveUrl,
+    )
+
     fun clearBearerTokenCache() {
         JdcrHttpClientFactory.clearBearerTokenCache()
+    }
+
+    /** 返回冷 Flow；取消收集会取消请求，并保留可安全续传的临时文件。 */
+    fun downloadFile(
+        request: JdcrDownloadRequest,
+        block: JdcrRequestBuilder.() -> Unit = {},
+    ): Flow<JdcrDownloadState> {
+        val options = JdcrRequestBuilder()
+            .apply(block)
+            .build()
+        return fileDownloader.download(request, options)
     }
 
     suspend inline fun <reified T> get(
@@ -74,7 +94,7 @@ open class JdcrHttpCore(
     ) {
         val channel = response.bodyAsChannel()
         while (!channel.isClosedForRead) {
-            val line = channel.readUTF8Line(Int.MAX_VALUE / 20) ?: break
+            val line = channel.readUTF8Line(Int.MAX_VALUE / 2000) ?: break
             onLine(line)
         }
         onClosed()

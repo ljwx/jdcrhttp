@@ -79,7 +79,7 @@ internal fun ByteReadChannel.asSseEventsResult(
 ): Flow<JdcrHttpResult<JdcrSSEEvent>> = flow<JdcrHttpResult<JdcrSSEEvent>> {
     val parser = JdcrSseLineParser()
     while (!isClosedForRead) {
-        val line = readUTF8Line(Int.MAX_VALUE / 20) ?: break
+        val line = readUTF8Line(Int.MAX_VALUE / 2000) ?: break
         JdcrHttpLog.v("SSE读到行: [${if (line.length > 150) line.substring(0, 140) else line}]")
         parser.accept(line)?.also { emit(JdcrHttpResult.Success(it)) }
     }

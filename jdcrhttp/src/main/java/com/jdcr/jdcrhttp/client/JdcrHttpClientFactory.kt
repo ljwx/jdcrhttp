@@ -98,7 +98,7 @@ object JdcrHttpClientFactory {
                     maxRetries = config.retry.maxRetries // 插件层最大重试次数（与引擎建连重试无关）
                     fun canRetryMethod(method: HttpMethod): Boolean {
                         return when (method) {
-                            HttpMethod.Post, HttpMethod.Patch -> return false
+                            HttpMethod.Post, HttpMethod.Patch, HttpMethod.Delete -> false
                             else -> true
                         }
                     }

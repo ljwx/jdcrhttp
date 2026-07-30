@@ -24,6 +24,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentLength
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -268,6 +269,9 @@ internal class JdcrFileDownloader(
         var lastProgressBytes = offset
         val buffer = ByteArray(request.bufferSize)
         val body = response.bodyAsChannel()
+        val rateLimiter = request.maxBytesPerSecond?.let {
+            DownloadRateLimiter(it, transferStartedAt)
+        }
 
         RandomAccessFile(request.partialFile, "rw").use { output ->
             if (offset == 0L) {
@@ -281,6 +285,7 @@ internal class JdcrFileDownloader(
                 if (read == -1) break
                 if (read == 0) continue
 
+                rateLimiter?.acquire(read)
                 output.write(buffer, 0, read)
                 digest?.update(buffer, 0, read)
                 bytesDownloaded += read
@@ -549,6 +554,36 @@ internal class JdcrFileDownloader(
         private const val METADATA_SOURCE = "source"
         private const val METADATA_VALIDATOR_KIND = "validatorKind"
         private const val METADATA_VALIDATOR_VALUE = "validatorValue"
+    }
+}
+
+/**
+ * 以本次网络传输的平均速度限流。等待发生在写入前，因此取消时不会把尚未计入进度的数据
+ * 写入临时文件。
+ */
+private class DownloadRateLimiter(
+    private val maxBytesPerSecond: Long,
+    private val startedAtNanos: Long,
+) {
+    private var acquiredBytes = 0L
+
+    suspend fun acquire(byteCount: Int) {
+        acquiredBytes += byteCount
+        val expectedElapsedNanos =
+            acquiredBytes.toDouble() * NANOS_PER_SECOND / maxBytesPerSecond
+        val actualElapsedNanos = (System.nanoTime() - startedAtNanos).coerceAtLeast(0L)
+        val remainingNanos = expectedElapsedNanos - actualElapsedNanos
+        if (remainingNanos > 0.0) {
+            val delayMillis = kotlin.math.ceil(remainingNanos / NANOS_PER_MILLISECOND)
+                .toLong()
+                .coerceAtLeast(1L)
+            delay(delayMillis)
+        }
+    }
+
+    private companion object {
+        const val NANOS_PER_MILLISECOND = 1_000_000.0
+        const val NANOS_PER_SECOND = 1_000_000_000.0
     }
 }
 

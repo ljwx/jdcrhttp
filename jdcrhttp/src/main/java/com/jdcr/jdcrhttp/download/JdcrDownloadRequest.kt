@@ -12,10 +12,15 @@ data class JdcrDownloadRequest(
     val calculateSha256: Boolean = expectedSha256 != null,
     val progressIntervalMillis: Long = 200L,
     val bufferSize: Int = DEFAULT_BUFFER_SIZE,
+    /** 最大下载速度（字节/秒）；为 null 时不限速。 512L * 1024 = 512 KB/s */
+    val maxBytesPerSecond: Long? = null,
 ) {
     init {
         require(pathOrUrl.isNotBlank()) { "pathOrUrl 不能为空" }
         require(progressIntervalMillis > 0) { "progressIntervalMillis 必须大于 0" }
+        require(maxBytesPerSecond == null || maxBytesPerSecond > 0L) {
+            "maxBytesPerSecond 必须大于 0"
+        }
         require(bufferSize in MIN_BUFFER_SIZE..MAX_BUFFER_SIZE) {
             "bufferSize 必须在 $MIN_BUFFER_SIZE..$MAX_BUFFER_SIZE 之间"
         }

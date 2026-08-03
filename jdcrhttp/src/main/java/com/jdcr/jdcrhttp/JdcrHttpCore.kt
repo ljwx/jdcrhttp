@@ -6,10 +6,14 @@ import com.jdcr.jdcrhttp.download.JdcrDownloadRequest
 import com.jdcr.jdcrhttp.download.JdcrDownloadState
 import com.jdcr.jdcrhttp.download.JdcrFileDownloader
 import com.jdcr.jdcrhttp.request.JdcrRequestBuilder
+import com.jdcr.jdcrhttp.request.JdcrRequestOptions
 import com.jdcr.jdcrhttp.request.applyJdcrRequest
 import com.jdcr.jdcrhttp.response.JdcrHttpResult
 import com.jdcr.jdcrhttp.response.handleRequestResult
 import com.jdcr.jdcrhttp.response.readSseLine
+import com.jdcr.jdcrhttp.upload.JdcrFileUploader
+import com.jdcr.jdcrhttp.upload.JdcrUploadRequest
+import com.jdcr.jdcrhttp.upload.JdcrUploadState
 import com.jdcr.jdcrhttp.util.JdcrHttpLog
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -27,12 +31,17 @@ import io.ktor.client.request.put
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readBytes
 import io.ktor.http.HttpHeaders
+import io.ktor.util.reflect.TypeInfo
+import io.ktor.util.reflect.typeInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlin.reflect.KClass
 
 open class JdcrHttpCore(
     @PublishedApi internal open var client: HttpClient,
@@ -43,6 +52,11 @@ open class JdcrHttpCore(
     internal val sseScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val fileDownloader = JdcrFileDownloader(
+        clientProvider = { client },
+        resolveUrl = ::resolveUrl,
+    )
+
+    private val fileUploader = JdcrFileUploader(
         clientProvider = { client },
         resolveUrl = ::resolveUrl,
     )
@@ -60,6 +74,50 @@ open class JdcrHttpCore(
             .apply(block)
             .build()
         return fileDownloader.download(request, options)
+    }
+
+    /**
+     * 返回冷 Flow；取消收集会取消进行中的上传。
+     *
+     * [JdcrRequestBuilder] 可用于 Header / Query / Timeout / Auth；
+     * 请求体由 [JdcrUploadRequest] 决定，builder 里的 body 会被忽略。
+     *
+     * 响应类型 [T] 支持 data class（JSON）、[String]、[ByteArray]、[Unit]。
+     */
+    inline fun <reified T> uploadFile(
+        request: JdcrUploadRequest,
+        noinline block: JdcrRequestBuilder.() -> Unit = {},
+    ): Flow<JdcrUploadState<T>> {
+        val options = JdcrRequestBuilder()
+            .apply(block)
+            .build()
+        val responseType = T::class
+        val responseTypeInfo = typeInfo<T>()
+        return uploadFileInternal(request, options) { response ->
+            parseUploadResponse(response, responseType, responseTypeInfo)
+        }
+    }
+
+    @PublishedApi
+    internal fun <T> uploadFileInternal(
+        request: JdcrUploadRequest,
+        options: JdcrRequestOptions,
+        parseResponse: suspend (HttpResponse) -> T,
+    ): Flow<JdcrUploadState<T>> = fileUploader.upload(request, options, parseResponse)
+
+    @PublishedApi
+    internal suspend fun <T> parseUploadResponse(
+        response: HttpResponse,
+        type: KClass<*>,
+        typeInfo: TypeInfo,
+    ): T {
+        @Suppress("UNCHECKED_CAST")
+        return when (type) {
+            Unit::class -> Unit as T
+            String::class -> response.bodyAsText() as T
+            ByteArray::class -> response.readBytes() as T
+            else -> response.body(typeInfo)
+        }
     }
 
     suspend inline fun <reified T> get(
